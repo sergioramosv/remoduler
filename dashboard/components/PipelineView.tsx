@@ -3,12 +3,12 @@
 import { PHASES, PHASE_LABELS } from '@/lib/types';
 
 const PHASE_COLORS: Record<string, string> = {
-  planning: 'var(--phase-planning)',
-  architecting: 'var(--phase-architecting)',
-  coding: 'var(--phase-coding)',
-  testing: 'var(--phase-testing)',
-  security: 'var(--phase-security)',
-  reviewing: 'var(--phase-reviewing)',
+  planning: '#6366f1',
+  architecting: '#06b6d4',
+  coding: '#22c55e',
+  testing: '#f59e0b',
+  security: '#a855f7',
+  reviewing: '#ec4899',
 };
 
 export function PipelineView({ currentPhase }: { currentPhase: string | null }) {
@@ -27,35 +27,34 @@ export function PipelineView({ currentPhase }: { currentPhase: string | null }) 
                 flex: 1,
                 padding: '14px 8px',
                 borderRadius: 'var(--radius)',
-                background: isActive ? `${color}15` : isDone ? `${color}10` : 'var(--bg-secondary)',
-                border: `2px solid ${isActive ? color : isDone ? `${color}40` : 'var(--border)'}`,
+                background: isActive ? `${color}18` : isDone ? `${color}15` : 'var(--bg-secondary)',
+                border: `2px solid ${isActive ? color : isDone ? `${color}50` : 'var(--border)'}`,
                 textAlign: 'center',
                 transition: 'all 0.3s',
                 position: 'relative',
                 overflow: 'hidden',
               }}>
-                {/* Fill animation for active phase */}
+                {/* Fill sweep animation */}
                 {isActive && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    bottom: 0,
-                    width: '100%',
-                    background: `linear-gradient(90deg, ${color}30, ${color}08)`,
-                    animation: 'fillSweep 2.5s ease-in-out infinite',
-                    transformOrigin: 'left',
-                  }} />
+                  <div
+                    className="fill-sweep"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      bottom: 0,
+                      width: '100%',
+                      background: `linear-gradient(90deg, transparent, ${color}40, ${color}20, transparent)`,
+                      transformOrigin: 'left center',
+                    }}
+                  />
                 )}
 
                 {/* Done fill */}
                 {isDone && (
                   <div style={{
                     position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    bottom: 0,
-                    right: 0,
+                    top: 0, left: 0, bottom: 0, right: 0,
                     background: `${color}12`,
                   }} />
                 )}
@@ -84,10 +83,19 @@ export function PipelineView({ currentPhase }: { currentPhase: string | null }) 
         })}
       </div>
       <style>{`
+        .fill-sweep {
+          animation: fillSweep 2s ease-in-out infinite;
+        }
         @keyframes fillSweep {
-          0% { transform: scaleX(0); opacity: 0.3; }
-          50% { transform: scaleX(1); opacity: 1; }
-          100% { transform: scaleX(0); opacity: 0.3; }
+          0% {
+            transform: translateX(-100%);
+          }
+          50% {
+            transform: translateX(0%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
         }
       `}</style>
     </div>
