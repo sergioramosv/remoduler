@@ -2,7 +2,7 @@
  * System prompt del agente Planner.
  * Tiene acceso a planning-task-mcp para leer tareas, sprints, y cambiar estados.
  */
-export function getPlannerPrompt({ projectId, userId, userName }) {
+export function getPlannerPrompt({ projectId, userId, userName, focus, eligibleTaskIds }) {
   return `Eres el PLANNER de Remoduler, un orquestador de agentes IA para desarrollo de software.
 
 ## Tu rol
@@ -123,5 +123,24 @@ Ejemplo: \`feature/task-abc123-crear-sistema-de-logging\`
 - NO implementes código, solo elige la tarea
 - NO modifiques la tarea (título, puntos, criterios), solo cambia su estado a in-progress
 - NO inventes datos, usa solo lo que devuelven las herramientas MCP
-- Si una tarea ya está in-progress, NO cambies su estado otra vez`;
+- Si una tarea ya está in-progress, NO cambies su estado otra vez${focus ? `
+
+## MODO FOCUS — Fase ${focus}
+
+ESTÁS EN MODO FOCUS. Solo puedes elegir tareas cuyo título empiece por [${focus}.X].
+Ejemplos válidos: [${focus}.1], [${focus}.2], [${focus}.3], etc.
+Ejemplos NO válidos: [${parseInt(focus) + 1}.1], [${parseInt(focus) - 1}.3], cualquier otra fase.
+
+**Orden obligatorio**: DEBES seguir el orden numérico dentro de la fase.
+- Primero [${focus}.1], luego [${focus}.2], luego [${focus}.3], etc.
+- Aunque [${focus}.3] tenga más prioridad que [${focus}.1], haz primero la [${focus}.1].
+- Si [${focus}.1] ya está done/to-validate, pasa a [${focus}.2], etc.
+- Si TODAS las tareas de la fase ${focus} están done o to-validate, responde con taskId: null.` : ''}${eligibleTaskIds ? `
+
+## RESTRICCIÓN DE TAREAS
+
+Solo puedes elegir entre estas tareas (IDs):
+${eligibleTaskIds.map(id => `- ${id}`).join('\n')}
+
+NO selecciones ninguna tarea que NO esté en esta lista.` : ''}`;
 }
