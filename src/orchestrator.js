@@ -7,6 +7,7 @@ import { config } from './config.js';
 import { budgetManager } from './cost/budget-manager.js';
 import { startSync, stopSync } from './state/firebase-sync.js';
 import { startHeartbeat, stopHeartbeat } from './heartbeat/heartbeat.js';
+import { resilienceManager } from './resilience/resilience-manager.js';
 
 export { eventBus, remodulerState, checkpointManager };
 
@@ -24,9 +25,12 @@ export async function run(projectId, options = {}) {
   await startSync(projectId);
   eventBus.emit('orchestrator:start', { projectId, maxTasks });
 
+  resilienceManager.initialize();
+
   // Listen for dashboard commands
   eventBus.on('dashboard:pause', () => remodulerState.requestPause());
   eventBus.on('dashboard:stop', () => remodulerState.requestStop());
+  eventBus.on('resilience:auto-pause', () => remodulerState.requestPause());
 
   const startTime = Date.now();
   let completed = 0;
@@ -92,6 +96,7 @@ export async function run(projectId, options = {}) {
     }
   } finally {
     stopHeartbeat();
+    resilienceManager.shutdown();
     remodulerState.setExecution('idle');
     await stopSync();
 
