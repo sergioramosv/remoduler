@@ -13,6 +13,7 @@ import { checkpointManager } from '../state/checkpoint-manager.js';
 import { config } from '../config.js';
 import { budgetManager } from '../cost/budget-manager.js';
 import { changeTaskStatus } from '../firebase.js';
+import { execSync } from 'node:child_process';
 import { classifyComplexity } from '../triage/complexity-classifier.js';
 import { selectModel } from '../triage/model-selector.js';
 import { shouldDecompose } from '../triage/task-decomposer.js';
@@ -239,6 +240,19 @@ export async function runTask(projectId, cwd) {
     if (reviewResult.approved) {
       logger.success(`Task completed! ${reviewResult.cycles} review cycle(s).`);
       remodulerState.taskCompleted(totalCost);
+
+      // Auto-merge PR + delete branch
+      if (config.autoMerge && prNumber) {
+        try {
+          const repo = task.repoUrl?.match(/github\.com\/([^/]+\/[^/]+)/)?.[1]?.replace(/\.git$/, '') || '';
+          if (repo) {
+            execSync(`gh pr merge ${prNumber} --repo ${repo} --squash --delete-branch`, { stdio: 'pipe' });
+            logger.success(`PR #${prNumber} merged + branch deleted`, 'MERGE');
+          }
+        } catch (err) {
+          logger.warn(`Auto-merge failed: ${err.message}`, 'MERGE');
+        }
+      }
 
       try {
         await changeTaskStatus(task.taskId, 'to-validate');
