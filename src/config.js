@@ -34,6 +34,8 @@ export const config = {
 
   // Budget
   dailyBudgetUsd: parseFloat(process.env.DAILY_BUDGET_USD || '10'),
+  weeklyBudgetUsd: parseFloat(process.env.WEEKLY_BUDGET_USD || '50'),
+  budgetWarningThreshold: parseFloat(process.env.BUDGET_WARNING_THRESHOLD || '0.8'),
 
   // Rate limit
   rateLimitFallback: process.env.RATE_LIMIT_FALLBACK !== 'false',

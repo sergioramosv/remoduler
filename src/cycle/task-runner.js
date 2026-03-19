@@ -11,6 +11,7 @@ import { eventBus } from '../events/event-bus.js';
 import { remodulerState } from '../state/remoduler-state.js';
 import { checkpointManager } from '../state/checkpoint-manager.js';
 import { config } from '../config.js';
+import { budgetManager } from '../cost/budget-manager.js';
 
 /**
  * Pipeline completo de ejecución de una tarea.
@@ -49,6 +50,7 @@ export async function runTask(projectId, cwd) {
 
   const task = planResult;
   totalCost += planResult.cost || 0;
+  await budgetManager.addCost(planResult.cost || 0);
 
   remodulerState.setCurrentTask(task);
   logger.taskHeader(`TASK: ${task.title}`);
@@ -66,6 +68,7 @@ export async function runTask(projectId, cwd) {
 
     const archResult = await runArchitect(task, task.repoUrl, { cwd });
     totalCost += archResult.cost || 0;
+    await budgetManager.addCost(archResult.cost || 0);
 
     const plan = archResult.success ? archResult.plan : null;
 
@@ -85,6 +88,7 @@ export async function runTask(projectId, cwd) {
     );
 
     totalCost += codeResult.cost || 0;
+    await budgetManager.addCost(codeResult.cost || 0);
 
     if (!codeResult.success) {
       if (codeResult.rateLimited) {
@@ -129,6 +133,7 @@ export async function runTask(projectId, cwd) {
 
     for (const [name, result] of Object.entries(testResults)) {
       totalCost += result.cost || 0;
+      await budgetManager.addCost(result.cost || 0);
       if (result.success) {
         logger.success(`${name} done: ${result.summary || 'OK'}`, name);
       } else {
@@ -158,6 +163,7 @@ export async function runTask(projectId, cwd) {
     });
 
     totalCost += reviewResult.cost || 0;
+    await budgetManager.addCost(reviewResult.cost || 0);
 
     // === RESULT ===
     if (reviewResult.approved) {

@@ -4,6 +4,7 @@ import { eventBus } from './events/event-bus.js';
 import { remodulerState } from './state/remoduler-state.js';
 import { checkpointManager } from './state/checkpoint-manager.js';
 import { config } from './config.js';
+import { budgetManager } from './cost/budget-manager.js';
 
 export { eventBus, remodulerState, checkpointManager };
 
@@ -17,6 +18,7 @@ export async function run(projectId, options = {}) {
   logger.info(`Project: ${projectId} | Tasks: ${maxTasks || '∞'} | CWD: ${cwd}`);
 
   remodulerState.setExecution('running');
+  await budgetManager.initialize(projectId);
   eventBus.emit('orchestrator:start', { projectId, maxTasks });
 
   const startTime = Date.now();
@@ -38,8 +40,9 @@ export async function run(projectId, options = {}) {
       }
 
       // Check budget
-      if (remodulerState.state.totalCost >= config.dailyBudgetUsd) {
-        logger.warn(`Daily budget exceeded ($${remodulerState.state.totalCost.toFixed(2)} >= $${config.dailyBudgetUsd})`);
+      if (budgetManager.isExceeded()) {
+        const status = budgetManager.getStatus();
+        logger.warn(`Budget exceeded — Daily: $${status.daily.spent.toFixed(2)}/$${status.daily.limit} | Weekly: $${status.weekly.spent.toFixed(2)}/$${status.weekly.limit}`);
         break;
       }
 
