@@ -129,6 +129,44 @@ program
     }
   });
 
+// --- remoduler dashboard ---
+program
+  .command('dashboard')
+  .alias('d')
+  .description('Levantar el dashboard en http://localhost:3003')
+  .option('--port <port>', 'Puerto', '3003')
+  .action(async (opts) => {
+    const { resolve } = await import('node:path');
+    const { spawn } = await import('node:child_process');
+    const { existsSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const { dirname } = await import('node:path');
+
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const dashboardDir = resolve(__dirname, '..', 'dashboard');
+
+    if (!existsSync(resolve(dashboardDir, 'node_modules'))) {
+      console.log('Installing dashboard dependencies...');
+      const { execSync } = await import('node:child_process');
+      execSync('npm install', { cwd: dashboardDir, stdio: 'inherit' });
+    }
+
+    console.log(`\nStarting dashboard on http://localhost:${opts.port}\n`);
+
+    const child = spawn('npx', ['next', 'dev', '--port', opts.port], {
+      cwd: dashboardDir,
+      stdio: 'inherit',
+      shell: true,
+    });
+
+    process.on('SIGINT', () => {
+      child.kill();
+      process.exit(0);
+    });
+
+    child.on('close', (code) => process.exit(code || 0));
+  });
+
 // --- remoduler install ---
 program
   .command('install')
