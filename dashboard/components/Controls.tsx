@@ -1,17 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { sendCommand } from '@/lib/hooks';
 import type { RemodulerState } from '@/lib/types';
 
 export function Controls({ state }: { state: RemodulerState }) {
   const isRunning = state.execution === 'running';
   const isPaused = state.execution === 'paused' || state.pauseRequested;
-  const isIdle = state.execution === 'idle';
+  const isIdle = state.execution === 'idle' && !state.pauseRequested;
 
-  const [tasks, setTasks] = useState('1');
+  const [tasks, setTasks] = useState('5');
   const [focus, setFocus] = useState('');
   const [starting, setStarting] = useState(false);
+
+  // Reset starting when state changes to running
+  useEffect(() => {
+    if (isRunning) setStarting(false);
+  }, [isRunning]);
 
   const startRun = async () => {
     setStarting(true);
@@ -27,8 +32,9 @@ export function Controls({ state }: { state: RemodulerState }) {
       });
     } catch (err) {
       console.error('Failed to start:', err);
+      setStarting(false);
     }
-    setStarting(false);
+    // Don't setStarting(false) — wait for Firebase state to change to 'running'
   };
 
   return (
@@ -49,8 +55,20 @@ export function Controls({ state }: { state: RemodulerState }) {
           </span>
         </div>
 
-        {/* Start controls (only when idle) */}
-        {isIdle && (
+        {/* Starting indicator */}
+        {starting && (
+          <div className="badge badge-running" style={{ fontSize: 13 }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: 'var(--accent)',
+              animation: 'pulse 1s infinite',
+            }} />
+            Starting...
+          </div>
+        )}
+
+        {/* Start controls (only when idle and not starting) */}
+        {isIdle && !starting && (
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tasks</label>
