@@ -59,13 +59,18 @@ function getStats(entries: HistoryEntry[]) {
   };
 }
 
+const PAGE_SIZE = 50;
+
 export default function HistoryPage() {
   const history = useHistory();
   const [period, setPeriod] = useState<Period>('today');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const filtered = filterByPeriod(history, period);
-  const grouped = groupByDate(filtered);
-  const stats = getStats(filtered);
+  const visible = filtered.slice(0, visibleCount);
+  const grouped = groupByDate(visible);
+  const stats = getStats(filtered); // stats from all, not just visible
+  const hasMore = visibleCount < filtered.length;
 
   return (
     <div className="dashboard">
@@ -83,7 +88,7 @@ export default function HistoryPage() {
             <button
               key={p}
               className={`btn ${period === p ? 'btn-primary' : ''}`}
-              onClick={() => setPeriod(p)}
+              onClick={() => { setPeriod(p); setVisibleCount(PAGE_SIZE); }}
             >
               {p === 'today' ? 'Today' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'All'}
             </button>
@@ -148,9 +153,17 @@ export default function HistoryPage() {
         ))
       )}
 
-      {/* Total events count */}
+      {/* Load more */}
+      {hasMore && (
+        <div style={{ textAlign: 'center', padding: 8 }}>
+          <button className="btn" onClick={() => setVisibleCount(v => v + PAGE_SIZE)}>
+            Load more ({filtered.length - visibleCount} remaining)
+          </button>
+        </div>
+      )}
+
       <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', padding: 8 }}>
-        {filtered.length} events total
+        Showing {visible.length} of {filtered.length} events
       </div>
     </div>
   );
