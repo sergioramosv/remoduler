@@ -228,4 +228,81 @@ describe('KnowledgeGraph — Tester tests', () => {
       expect(written[0].type).toBe('a');
     });
   });
+
+  // ─── Firebase-specific logging on ref.once failure ─────────────────
+  describe('Firebase _saveFirebase catch logging', () => {
+    it('logs warning with "Firebase knowledge save failed" when ref.once throws', async () => {
+      mockOnce.mockRejectedValue(new Error('permission-denied'));
+
+      await kg.addEntry('proj1', 'src/x.js', 'coderBrief', { v: 1 });
+
+      expect(mockWarn).toHaveBeenCalledWith(
+        expect.stringContaining('Firebase knowledge save failed'),
+        'KNOWLEDGE',
+      );
+    });
+
+    it('logs warning with "Firebase knowledge save failed" when ref.set throws', async () => {
+      mockOnce.mockResolvedValue({ val: () => [] });
+      mockSet.mockRejectedValueOnce(new Error('write denied'));
+
+      await kg.addEntry('proj1', 'src/x.js', 'coderBrief', { v: 1 });
+
+      expect(mockWarn).toHaveBeenCalledWith(
+        expect.stringContaining('Firebase knowledge save failed'),
+        'KNOWLEDGE',
+      );
+    });
+  });
+
+  // ─── getEntries type filter with no matches ────────────────────────
+  describe('getEntries type filter', () => {
+    it('returns empty array when type filter matches no entries', async () => {
+      const entries = [
+        { type: 'coderBrief', data: {}, createdAt: '2025-01-01' },
+        { type: 'moduleLessons', data: {}, createdAt: '2025-01-02' },
+      ];
+      mockReadFile.mockResolvedValue(JSON.stringify(entries));
+
+      const result = await kg.getEntries('proj1', 'src/x.js', 'nonExistentType');
+      expect(result).toEqual([]);
+    });
+  });
+
+  // ─── loadLessonsForFiles with empty string ─────────────────────────
+  describe('loadLessonsForFiles edge: empty string path', () => {
+    it('handles empty string in filePaths without crashing', async () => {
+      mockReadFile.mockResolvedValue(JSON.stringify([]));
+
+      const result = await kg.loadLessonsForFiles('proj1', ['']);
+      expect(Array.isArray(result)).toBe(true);
+    });
+  });
+
+  // ─── mkdir recursive for nested scopes ─────────────────────────────
+  describe('directory creation', () => {
+    it('creates parent directories with recursive:true on _saveLocal', async () => {
+      await kg.addEntry('proj1', 'deep/nested/scope.js', 'coderBrief', {});
+
+      expect(mockMkdir).toHaveBeenCalledWith(
+        expect.any(String),
+        { recursive: true },
+      );
+    });
+  });
+
+  // ─── falsy knowledgeLocalDir defaults ──────────────────────────────
+  describe('config fallback defaults', () => {
+    it('uses default .remoduler/knowledge when knowledgeLocalDir is falsy', () => {
+      mockConfig.knowledgeLocalDir = '';
+      const path = kg._localPath('proj1', 'src/x.js');
+      expect(path).toMatch(/\.remoduler[/\\]knowledge/);
+    });
+
+    it('uses default .remoduler/knowledge when knowledgeLocalDir is undefined', () => {
+      mockConfig.knowledgeLocalDir = undefined;
+      const path = kg._localPath('proj1', 'src/x.js');
+      expect(path).toMatch(/\.remoduler[/\\]knowledge/);
+    });
+  });
 });
