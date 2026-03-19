@@ -16,6 +16,7 @@ import { changeTaskStatus } from '../firebase.js';
 import { classifyComplexity } from '../triage/complexity-classifier.js';
 import { selectModel } from '../triage/model-selector.js';
 import { shouldDecompose } from '../triage/task-decomposer.js';
+import { knowledgeGraph } from '../knowledge/knowledge-graph.js';
 
 const EMPTY_TOKENS = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
 
@@ -137,6 +138,21 @@ export async function runTask(projectId, cwd) {
     logger.warn(`Task devPoints (${task.devPoints}) exceeds decomposition threshold — consider splitting`, 'TRIAGE');
   }
 
+  // === KNOWLEDGE: Load lessons for relevant files ===
+  let knowledgeLessons = [];
+  try {
+    const taskFiles = [
+      ...(task.filesToCreate?.map(f => typeof f === 'string' ? f : f.path) || []),
+      ...(task.filesToModify?.map(f => typeof f === 'string' ? f : f.path) || []),
+    ];
+    knowledgeLessons = await knowledgeGraph.loadLessonsForFiles(projectId, taskFiles);
+    if (knowledgeLessons.length) {
+      logger.info(`Loaded ${knowledgeLessons.length} knowledge entries for task files`, 'KNOWLEDGE');
+    }
+  } catch (err) {
+    logger.warn(`Failed to load knowledge lessons: ${err.message}`, 'KNOWLEDGE');
+  }
+
   try {
     // === PHASE 2: ARCHITECTING ===
     logger.taskHeader('PHASE 2: ARCHITECT');
@@ -232,6 +248,21 @@ export async function runTask(projectId, cwd) {
       }
 
       eventBus.emit('task:complete', { taskId: task.taskId, totalCost, cycles: reviewResult.cycles });
+
+      // === KNOWLEDGE: Record successful patterns ===
+      try {
+        await knowledgeGraph.addEntry(projectId, branchName, 'coderBrief', {
+          summary: coderSummary,
+          filesChanged,
+        });
+        await knowledgeGraph.recordSuccessfulReview(projectId, branchName, {
+          cycles: reviewResult.cycles,
+          taskId: task.taskId,
+        });
+        logger.info('Knowledge entries recorded', 'KNOWLEDGE');
+      } catch (err) {
+        logger.warn(`Failed to record knowledge: ${err.message}`, 'KNOWLEDGE');
+      }
     } else {
       logger.error(`Task not approved after ${reviewResult.cycles} cycles`);
       remodulerState.taskFailed(reviewResult.error);
