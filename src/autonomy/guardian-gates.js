@@ -33,7 +33,7 @@ class GuardianGates {
   }
 
   #diffSizeGate({ filesChanged, diffLines }) {
-    const count = diffLines || (filesChanged?.length || 0);
+    const count = diffLines ?? (filesChanged?.length ?? 0);
     const threshold = config.autonomyDiffThreshold;
     const triggered = count > threshold;
     return {

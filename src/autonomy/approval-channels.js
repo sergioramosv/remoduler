@@ -41,8 +41,9 @@ class ApprovalChannels {
    * con el requestId correspondiente.
    */
   listenForResponse(requestId) {
-    return new Promise((resolve) => {
-      const handler = (response) => {
+    let handler;
+    const promise = new Promise((resolve) => {
+      handler = (response) => {
         if (response.requestId === requestId) {
           eventBus.off('autonomy:approval-response', handler);
           resolve(response);
@@ -50,6 +51,8 @@ class ApprovalChannels {
       };
       eventBus.on('autonomy:approval-response', handler);
     });
+    const cancel = () => eventBus.off('autonomy:approval-response', handler);
+    return { promise, cancel };
   }
 
   getChannels() {

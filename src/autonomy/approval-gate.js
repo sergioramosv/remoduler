@@ -28,10 +28,12 @@ class ApprovalGate {
     approvalChannels.notifyChannels(request);
 
     // Race: response vs timeout
+    const { promise, cancel } = approvalChannels.listenForResponse(requestId);
     const result = await Promise.race([
-      approvalChannels.listenForResponse(requestId),
+      promise,
       this.#timeout(timeoutMs, requestId),
     ]);
+    cancel();
 
     if (result.timedOut) {
       logger.warn(`Approval timed out for '${action}' — denied by default`, 'AUTONOMY');

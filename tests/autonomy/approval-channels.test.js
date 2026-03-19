@@ -88,7 +88,7 @@ describe('ApprovalChannels — Unit', () => {
       }
     });
 
-    const promise = channels.listenForResponse('req-123');
+    const { promise } = channels.listenForResponse('req-123');
 
     // Simulate response
     capturedHandler({ requestId: 'req-123', approved: true, respondedBy: 'admin' });
@@ -107,7 +107,7 @@ describe('ApprovalChannels — Unit', () => {
       }
     });
 
-    const promise = channels.listenForResponse('req-456');
+    const { promise } = channels.listenForResponse('req-456');
 
     // Wrong requestId — should not resolve
     capturedHandler({ requestId: 'req-789', approved: true, respondedBy: 'user' });

@@ -26,6 +26,11 @@ const { ApprovalGate } = await import('../../src/autonomy/approval-gate.js');
 const { approvalChannels } = await import('../../src/autonomy/approval-channels.js');
 const { eventBus } = await import('../../src/events/event-bus.js');
 
+/** Helper: wrap a value as { promise, cancel } to match the new listenForResponse signature */
+function mockListen(value) {
+  return { promise: value instanceof Promise ? value : Promise.resolve(value), cancel: vi.fn() };
+}
+
 // ─── ACCEPTANCE CRITERIA TESTS ───────────────────────────────────────
 
 describe('ApprovalGate — Acceptance Criteria', () => {
@@ -37,11 +42,11 @@ describe('ApprovalGate — Acceptance Criteria', () => {
   });
 
   it('AC: waitForApproval() resolves with approved=true when channel responds', async () => {
-    approvalChannels.listenForResponse.mockResolvedValue({
+    approvalChannels.listenForResponse.mockReturnValue(mockListen({
       approved: true,
       respondedBy: 'dashboard-user',
       timedOut: false,
-    });
+    }));
 
     const result = await gate.waitForApproval({
       action: 'pre-code',
@@ -56,7 +61,7 @@ describe('ApprovalGate — Acceptance Criteria', () => {
 
   it('AC: waitForApproval() resolves with approved=false on timeout', async () => {
     // listenForResponse never resolves, so timeout wins
-    approvalChannels.listenForResponse.mockReturnValue(new Promise(() => {}));
+    approvalChannels.listenForResponse.mockReturnValue(mockListen(new Promise(() => {})));
 
     const result = await gate.waitForApproval({
       action: 'pre-merge',
@@ -70,11 +75,11 @@ describe('ApprovalGate — Acceptance Criteria', () => {
   }, 5000);
 
   it('AC: waitForApproval() notifies channels before waiting', async () => {
-    approvalChannels.listenForResponse.mockResolvedValue({
+    approvalChannels.listenForResponse.mockReturnValue(mockListen({
       approved: true,
       respondedBy: 'api',
       timedOut: false,
-    });
+    }));
 
     await gate.waitForApproval({
       action: 'deploy',
@@ -92,7 +97,7 @@ describe('ApprovalGate — Acceptance Criteria', () => {
   });
 
   it('AC: emits autonomy:approval-timeout event on timeout', async () => {
-    approvalChannels.listenForResponse.mockReturnValue(new Promise(() => {}));
+    approvalChannels.listenForResponse.mockReturnValue(mockListen(new Promise(() => {})));
 
     await gate.waitForApproval({
       action: 'pre-code',
@@ -119,7 +124,7 @@ describe('ApprovalGate — Unit', () => {
   it('generates unique requestIds', async () => {
     const ids = [];
     approvalChannels.notifyChannels.mockImplementation((req) => ids.push(req.requestId));
-    approvalChannels.listenForResponse.mockResolvedValue({ approved: true, respondedBy: 'api', timedOut: false });
+    approvalChannels.listenForResponse.mockReturnValue(mockListen({ approved: true, respondedBy: 'api', timedOut: false }));
 
     await gate.waitForApproval({ action: 'a', reasons: [] });
     await gate.waitForApproval({ action: 'b', reasons: [] });
@@ -128,7 +133,7 @@ describe('ApprovalGate — Unit', () => {
   });
 
   it('returns result with correct shape', async () => {
-    approvalChannels.listenForResponse.mockResolvedValue({ approved: false, respondedBy: 'user', timedOut: false });
+    approvalChannels.listenForResponse.mockReturnValue(mockListen({ approved: false, respondedBy: 'user', timedOut: false }));
 
     const result = await gate.waitForApproval({ action: 'test', reasons: [] });
 
@@ -150,11 +155,11 @@ describe('ApprovalGate — Edge Cases', () => {
   });
 
   it('handles denial response correctly', async () => {
-    approvalChannels.listenForResponse.mockResolvedValue({
+    approvalChannels.listenForResponse.mockReturnValue(mockListen({
       approved: false,
       respondedBy: 'admin',
       timedOut: false,
-    });
+    }));
 
     const result = await gate.waitForApproval({ action: 'risky', reasons: ['security'] });
     expect(result.approved).toBe(false);
@@ -162,14 +167,14 @@ describe('ApprovalGate — Edge Cases', () => {
   });
 
   it('handles empty reasons array', async () => {
-    approvalChannels.listenForResponse.mockResolvedValue({ approved: true, respondedBy: 'user', timedOut: false });
+    approvalChannels.listenForResponse.mockReturnValue(mockListen({ approved: true, respondedBy: 'user', timedOut: false }));
 
     const result = await gate.waitForApproval({ action: 'test', context: {}, reasons: [] });
     expect(result.approved).toBe(true);
   });
 
   it('respondedBy defaults to null when missing from response', async () => {
-    approvalChannels.listenForResponse.mockResolvedValue({ approved: true });
+    approvalChannels.listenForResponse.mockReturnValue(mockListen({ approved: true }));
 
     const result = await gate.waitForApproval({ action: 'test', reasons: [] });
     expect(result.respondedBy).toBeNull();
