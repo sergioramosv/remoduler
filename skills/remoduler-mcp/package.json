@@ -1,0 +1,18 @@
+{
+  "name": "remoduler-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server para orquestar Remoduler desde cualquier cliente MCP",
+  "type": "module",
+  "bin": {
+    "remoduler-mcp": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.2",
+    "dotenv": "^17.3.1"
+  },
+  "license": "MIT"
+}
