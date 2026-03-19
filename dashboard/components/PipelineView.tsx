@@ -25,40 +25,71 @@ export function PipelineView({ currentPhase }: { currentPhase: string | null }) 
             <div key={phase} style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
               <div style={{
                 flex: 1,
-                padding: '12px 8px',
+                padding: '14px 8px',
                 borderRadius: 'var(--radius)',
-                background: isActive ? `${color}20` : isDone ? `${color}10` : 'var(--bg-secondary)',
+                background: isActive ? `${color}15` : isDone ? `${color}10` : 'var(--bg-secondary)',
                 border: `2px solid ${isActive ? color : isDone ? `${color}40` : 'var(--border)'}`,
                 textAlign: 'center',
                 transition: 'all 0.3s',
                 position: 'relative',
                 overflow: 'hidden',
               }}>
+                {/* Fill animation for active phase */}
                 {isActive && (
                   <div style={{
-                    position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-                    background: color,
-                    animation: 'pulse 2s infinite',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    width: '100%',
+                    background: `linear-gradient(90deg, ${color}30, ${color}08)`,
+                    animation: 'fillSweep 2.5s ease-in-out infinite',
+                    transformOrigin: 'left',
                   }} />
                 )}
+
+                {/* Done fill */}
+                {isDone && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    right: 0,
+                    background: `${color}12`,
+                  }} />
+                )}
+
                 <div style={{
+                  position: 'relative',
+                  zIndex: 1,
                   fontSize: 11,
                   fontWeight: 700,
-                  color: isActive ? color : isDone ? `${color}` : 'var(--text-muted)',
+                  color: isActive ? color : isDone ? color : 'var(--text-muted)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                 }}>
-                  {isDone ? '✓ ' : ''}{PHASE_LABELS[phase]}
+                  {isDone ? '✓ ' : isActive ? '● ' : ''}{PHASE_LABELS[phase]}
                 </div>
               </div>
               {i < PHASES.length - 1 && (
-                <div style={{ color: isDone ? color : 'var(--text-muted)', fontSize: 10 }}>→</div>
+                <div style={{
+                  color: isDone ? color : 'var(--text-muted)',
+                  fontSize: 10,
+                  transition: 'color 0.3s',
+                }}>→</div>
               )}
             </div>
           );
         })}
       </div>
-      <style>{`@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+      <style>{`
+        @keyframes fillSweep {
+          0% { transform: scaleX(0); opacity: 0.3; }
+          50% { transform: scaleX(1); opacity: 1; }
+          100% { transform: scaleX(0); opacity: 0.3; }
+        }
+      `}</style>
     </div>
   );
 }
