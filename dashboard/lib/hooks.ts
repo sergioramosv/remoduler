@@ -38,8 +38,40 @@ export function useRemodulerState(): RemodulerState {
   });
 }
 
+// Session agents (current run only)
 export function useAgents(): Record<string, AgentInfo> {
-  return useListen<Record<string, AgentInfo>>('agents', {});
+  return useListen<Record<string, AgentInfo>>('sessionAgents', {});
+}
+
+// Lifetime stats (accumulated, never reset)
+export interface LifetimeStats {
+  totalCost: number;
+  totalTokens: { input: number; output: number; cacheRead: number; cacheWrite: number; total: number };
+  tasksCompleted: number;
+  tasksFailed: number;
+  totalReviewCycles: number;
+  totalSessions: number;
+  firstRunAt: number;
+  lastRunAt: number;
+}
+
+export function useLifetime(): LifetimeStats {
+  return useListen<LifetimeStats>('lifetime', {
+    totalCost: 0, totalTokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    tasksCompleted: 0, tasksFailed: 0, totalReviewCycles: 0, totalSessions: 0, firstRunAt: 0, lastRunAt: 0,
+  });
+}
+
+export interface LifetimeAgentInfo {
+  totalCost: number;
+  totalTokens: { input: number; output: number; cacheRead: number; cacheWrite: number; total: number };
+  totalTurns: number;
+  totalDuration: number;
+  runs: number;
+}
+
+export function useLifetimeAgents(): Record<string, LifetimeAgentInfo> {
+  return useListen<Record<string, LifetimeAgentInfo>>('lifetimeAgents', {});
 }
 
 export function useHistory(): HistoryEntry[] {
