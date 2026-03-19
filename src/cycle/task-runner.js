@@ -14,16 +14,65 @@ import { config } from '../config.js';
 import { budgetManager } from '../cost/budget-manager.js';
 import { changeTaskStatus } from '../firebase.js';
 
+const EMPTY_TOKENS = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+
+function addTokens(a, b) {
+  return {
+    input: (a.input || 0) + (b.input || 0),
+    output: (a.output || 0) + (b.output || 0),
+    cacheRead: (a.cacheRead || 0) + (b.cacheRead || 0),
+    cacheWrite: (a.cacheWrite || 0) + (b.cacheWrite || 0),
+    total: (a.total || 0) + (b.total || 0),
+  };
+}
+
+function trackAgent(stats, name, result) {
+  stats[name] = {
+    cost: result.cost || 0,
+    tokens: result.tokens || { ...EMPTY_TOKENS },
+    turns: result.turns || 0,
+    duration: result.duration || 0,
+  };
+}
+
+function printSummary(stats) {
+  logger.taskHeader('TASK SUMMARY — Per Agent');
+
+  let totalCost = 0;
+  let totalTokens = { ...EMPTY_TOKENS };
+
+  const rows = [];
+  for (const [name, s] of Object.entries(stats)) {
+    totalCost += s.cost;
+    totalTokens = addTokens(totalTokens, s.tokens);
+    rows.push({
+      name,
+      eur: (s.cost * 0.92).toFixed(3),
+      usd: s.cost.toFixed(3),
+      tokens: s.tokens.total,
+      turns: s.turns,
+    });
+  }
+
+  // Print table
+  const nameW = 12;
+  const header = `${'Agent'.padEnd(nameW)} ${'EUR'.padStart(8)} ${'USD'.padStart(8)} ${'Tokens'.padStart(10)} ${'Turns'.padStart(6)}`;
+  console.log(`  ${header}`);
+  console.log(`  ${'─'.repeat(header.length)}`);
+  for (const r of rows) {
+    console.log(`  ${r.name.padEnd(nameW)} ${(r.eur + '€').padStart(8)} ${('$' + r.usd).padStart(8)} ${r.tokens.toLocaleString().padStart(10)} ${String(r.turns).padStart(6)}`);
+  }
+  console.log(`  ${'─'.repeat(header.length)}`);
+  console.log(`  ${'TOTAL'.padEnd(nameW)} ${((totalCost * 0.92).toFixed(3) + '€').padStart(8)} ${('$' + totalCost.toFixed(3)).padStart(8)} ${totalTokens.total.toLocaleString().padStart(10)}`);
+  console.log(`\n  Tokens breakdown: in: ${totalTokens.input.toLocaleString()} | out: ${totalTokens.output.toLocaleString()} | cache-r: ${totalTokens.cacheRead.toLocaleString()} | cache-w: ${totalTokens.cacheWrite.toLocaleString()}\n`);
+}
+
 /**
  * Pipeline completo de ejecución de una tarea.
- * Planner → Architect → Coder → QA/Tester/Security → Review Loop → Merge
- *
- * @param {string} projectId
- * @param {string} cwd - Directorio del repo target
- * @returns {{ success, taskId, totalCost, cycles } | null}
  */
 export async function runTask(projectId, cwd) {
   let totalCost = 0;
+  const agentStats = {};
 
   // === PHASE 1: PLANNING ===
   logger.taskHeader('PHASE 1: PLANNING');
@@ -46,12 +95,13 @@ export async function runTask(projectId, cwd) {
 
   if (planResult.empty) {
     logger.info(planResult.message);
-    return null; // Backlog vacío
+    return null;
   }
 
   const task = planResult;
   totalCost += planResult.cost || 0;
   await budgetManager.addCost(planResult.cost || 0, planResult.tokens);
+  trackAgent(agentStats, 'PLANNER', planResult);
 
   remodulerState.setCurrentTask(task);
   logger.taskHeader(`TASK: ${task.title}`);
@@ -70,6 +120,7 @@ export async function runTask(projectId, cwd) {
     const archResult = await runArchitect(task, task.repoUrl, { cwd });
     totalCost += archResult.cost || 0;
     await budgetManager.addCost(archResult.cost || 0, archResult.tokens);
+    trackAgent(agentStats, 'ARCHITECT', archResult);
 
     const plan = archResult.success ? archResult.plan : null;
 
@@ -81,15 +132,10 @@ export async function runTask(projectId, cwd) {
     logger.taskHeader('PHASE 3: CODING');
     remodulerState.setCurrentAgent('CODER');
 
-    const codeResult = await runCoder(
-      task,
-      plan,
-      task.branchName,
-      task.repoUrl,
-    );
-
+    const codeResult = await runCoder(task, plan, task.branchName, task.repoUrl);
     totalCost += codeResult.cost || 0;
     await budgetManager.addCost(codeResult.cost || 0, codeResult.tokens);
+    trackAgent(agentStats, 'CODER', codeResult);
 
     if (!codeResult.success) {
       if (codeResult.rateLimited) {
@@ -102,39 +148,23 @@ export async function runTask(projectId, cwd) {
 
     const { prUrl, prNumber, branchName, filesChanged, summary: coderSummary } = codeResult;
     logger.success(`PR created: ${prUrl}`, 'CODER');
-
     eventBus.emit('task:prCreated', { taskId: task.taskId, prNumber, prUrl });
 
     // === PHASE 4: TESTING (parallel) ===
     logger.taskHeader('PHASE 4: TESTING');
 
-    const testAgents = [];
-
-    testAgents.push({
-      name: 'QA',
-      parallel: true,
-      execute: () => runQA(task, branchName, filesChanged),
-    });
-
-    testAgents.push({
-      name: 'TESTER',
-      parallel: true,
-      execute: () => runTester(
-        task, branchName, plan, coderSummary, plan?.risks || [],
-      ),
-    });
-
-    testAgents.push({
-      name: 'SECURITY',
-      parallel: true,
-      execute: () => runSecurity(task, branchName, filesChanged),
-    });
+    const testAgents = [
+      { name: 'QA', parallel: true, execute: () => runQA(task, branchName, filesChanged) },
+      { name: 'TESTER', parallel: true, execute: () => runTester(task, branchName, plan, coderSummary, plan?.risks || []) },
+      { name: 'SECURITY', parallel: true, execute: () => runSecurity(task, branchName, filesChanged) },
+    ];
 
     const testResults = await runParallelAgents(testAgents);
 
     for (const [name, result] of Object.entries(testResults)) {
       totalCost += result.cost || 0;
       await budgetManager.addCost(result.cost || 0, result.tokens);
+      trackAgent(agentStats, name, result);
       if (result.success) {
         logger.success(`${name} done: ${result.summary || 'OK'}`, name);
       } else {
@@ -142,12 +172,9 @@ export async function runTask(projectId, cwd) {
       }
     }
 
-    // Check if QA found coder bugs
     if (testResults.QA?.failsCoderCode) {
       logger.warn('QA found bugs in Coder code — review will flag these');
     }
-
-    // Check security verdict
     if (testResults.SECURITY?.verdict === 'BLOCK') {
       logger.error('Security BLOCK: critical vulnerabilities found');
     }
@@ -156,22 +183,22 @@ export async function runTask(projectId, cwd) {
     logger.taskHeader('PHASE 5: REVIEW');
 
     const reviewResult = await reviewLoop({
-      prNumber,
-      prUrl,
-      task,
-      branchName,
+      prNumber, prUrl, task, branchName,
       maxCycles: config.maxReviewCycles,
     });
 
     totalCost += reviewResult.cost || 0;
     await budgetManager.addCost(reviewResult.cost || 0, reviewResult.tokens);
+    trackAgent(agentStats, 'REVIEWER', { cost: reviewResult.cost, tokens: reviewResult.tokens, turns: 0, duration: 0 });
+
+    // === SUMMARY ===
+    printSummary(agentStats);
 
     // === RESULT ===
     if (reviewResult.approved) {
-      logger.success(`Task completed! ${reviewResult.cycles} review cycle(s). Cost: ${(totalCost * 0.92).toFixed(4)}€ / $${totalCost.toFixed(4)}`);
+      logger.success(`Task completed! ${reviewResult.cycles} review cycle(s).`);
       remodulerState.taskCompleted(totalCost);
 
-      // Update task status in planning-task
       try {
         await changeTaskStatus(task.taskId, 'to-validate');
         logger.info(`Task ${task.taskId} → to-validate`, 'PLANNER');
@@ -184,7 +211,6 @@ export async function runTask(projectId, cwd) {
       logger.error(`Task not approved after ${reviewResult.cycles} cycles`);
       remodulerState.taskFailed(reviewResult.error);
 
-      // Put task back to to-do
       try {
         await changeTaskStatus(task.taskId, 'to-do');
         logger.info(`Task ${task.taskId} → to-do (not approved)`, 'PLANNER');
@@ -204,6 +230,7 @@ export async function runTask(projectId, cwd) {
 
   } catch (error) {
     logger.error(`Task failed: ${error.message}`);
+    printSummary(agentStats);
     remodulerState.taskFailed(error.message);
     eventBus.emit('task:failed', { taskId: task.taskId, error: error.message });
     return { success: false, taskId: task.taskId, totalCost, error: error.message };

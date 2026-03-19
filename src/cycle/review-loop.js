@@ -4,17 +4,20 @@ import { logger } from '../utils/logger.js';
 import { eventBus } from '../events/event-bus.js';
 import { remodulerState } from '../state/remoduler-state.js';
 
+const EMPTY_TOKENS = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+
+function addTokens(a, b) {
+  return {
+    input: (a.input || 0) + (b.input || 0),
+    output: (a.output || 0) + (b.output || 0),
+    cacheRead: (a.cacheRead || 0) + (b.cacheRead || 0),
+    cacheWrite: (a.cacheWrite || 0) + (b.cacheWrite || 0),
+    total: (a.total || 0) + (b.total || 0),
+  };
+}
+
 /**
  * Review loop: Reviewer ↔ Coder fix, max N ciclos.
- *
- * @param {object} options
- * @param {number} options.prNumber
- * @param {string} options.prUrl
- * @param {object} options.task - Task spec del planner
- * @param {string} options.branchName
- * @param {number} options.maxCycles - Max review cycles (default 3)
- * @param {string} options.reviewDepth - quick|standard|deep|forensic
- * @returns {{ approved, cycles, finalReview, cost }}
  */
 export async function reviewLoop(options) {
   const {
@@ -27,6 +30,7 @@ export async function reviewLoop(options) {
   } = options;
 
   let totalCost = 0;
+  let totalTokens = { ...EMPTY_TOKENS };
 
   for (let cycle = 1; cycle <= maxCycles; cycle++) {
     logger.info(`Review cycle ${cycle}/${maxCycles}`, 'REVIEWER');
@@ -34,14 +38,15 @@ export async function reviewLoop(options) {
 
     // --- REVIEW ---
     remodulerState.setCurrentAgent('REVIEWER');
-    const depth = cycle === 1 ? reviewDepth : 'quick'; // Ciclos 2+ son quick
+    const depth = cycle === 1 ? reviewDepth : 'quick';
 
     const reviewResult = await runReviewer(task, prUrl, branchName, { depth });
     totalCost += reviewResult.cost || 0;
+    totalTokens = addTokens(totalTokens, reviewResult.tokens || EMPTY_TOKENS);
 
     if (!reviewResult.success) {
       logger.error(`Reviewer failed: ${reviewResult.error}`, 'REVIEWER');
-      return { approved: false, cycles: cycle, cost: totalCost, error: reviewResult.error };
+      return { approved: false, cycles: cycle, cost: totalCost, tokens: totalTokens, error: reviewResult.error };
     }
 
     // --- VERDICT CHECK ---
@@ -53,6 +58,7 @@ export async function reviewLoop(options) {
         cycles: cycle,
         finalReview: reviewResult,
         cost: totalCost,
+        tokens: totalTokens,
       };
     }
 
@@ -67,6 +73,7 @@ export async function reviewLoop(options) {
         cycles: cycle,
         finalReview: reviewResult,
         cost: totalCost,
+        tokens: totalTokens,
         error: `Not approved after ${maxCycles} cycles`,
       };
     }
@@ -77,10 +84,11 @@ export async function reviewLoop(options) {
 
     const fixResult = await runCoderFix(task, branchName, reviewResult.issues);
     totalCost += fixResult.cost || 0;
+    totalTokens = addTokens(totalTokens, fixResult.tokens || EMPTY_TOKENS);
 
     if (!fixResult.success) {
       logger.error(`Coder fix failed: ${fixResult.error}`, 'CODER');
-      return { approved: false, cycles: cycle, cost: totalCost, error: fixResult.error };
+      return { approved: false, cycles: cycle, cost: totalCost, tokens: totalTokens, error: fixResult.error };
     }
 
     logger.info(`Fixed: ${fixResult.issuesResolved.length} issues`, 'CODER');
