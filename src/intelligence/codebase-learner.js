@@ -1,6 +1,8 @@
 import { getDb } from '../firebase.js';
 import { logger } from '../utils/logger.js';
 
+const MAX_PATTERNS = 100;
+
 export async function learnFromTask(projectId, taskResult) {
   try {
     const pattern = extractPattern(taskResult);
@@ -8,8 +10,9 @@ export async function learnFromTask(projectId, taskResult) {
     const snapshot = await ref.once('value');
     const existing = snapshot.val() || [];
 
-    const patterns = Array.isArray(existing) ? existing : [];
+    let patterns = Array.isArray(existing) ? existing : [];
     patterns.push(pattern);
+    if (patterns.length > MAX_PATTERNS) patterns = patterns.slice(-MAX_PATTERNS);
 
     await ref.set(patterns);
     logger.info(`Learned pattern from task in project ${projectId}`, 'INTELLIGENCE');

@@ -15,7 +15,7 @@ vi.mock('../src/firebase.js', () => ({
 vi.mock('../src/config.js', () => ({
   config: {
     intelligenceCacheTtl: 300000,
-    intelligenceMaxTokens: 2000,
+    intelligenceMaxChars: 2000,
     intelligenceDecayFactor: 0.95,
     intelligenceSyncThreshold: 0.6,
   },
@@ -35,7 +35,7 @@ vi.mock('../src/events/event-bus.js', () => ({
 }));
 
 // --- Imports (after mocks) ---
-const { indexCodebase, clearIndexCache, INDEX_CACHE_TTL, MAX_TOKENS } =
+const { indexCodebase, clearIndexCache, INDEX_CACHE_TTL, MAX_CHARS } =
   await import('../src/intelligence/codebase-indexer.js');
 
 const { detectStyle, STYLE_RULES } =
@@ -60,8 +60,8 @@ describe('codebase-indexer', () => {
     expect(INDEX_CACHE_TTL).toBe(300000);
   });
 
-  it('exports MAX_TOKENS as 2000', () => {
-    expect(MAX_TOKENS).toBe(2000);
+  it('exports MAX_CHARS as 2000 (character limit)', () => {
+    expect(MAX_CHARS).toBe(2000);
   });
 
   it('indexCodebase returns expected structure for src/', async () => {
@@ -95,10 +95,10 @@ describe('codebase-indexer', () => {
     expect(result.totalFiles).toBe(0);
   });
 
-  it('respects max tokens limit', async () => {
+  it('respects max chars limit', async () => {
     const result = await indexCodebase('src/');
     const json = JSON.stringify(result);
-    expect(json.length).toBeLessThanOrEqual(MAX_TOKENS + 200); // small margin for truncation granularity
+    expect(json.length).toBeLessThanOrEqual(MAX_CHARS + 200); // small margin for truncation granularity
   });
 
   it('file entries have path, exports, imports, lines', async () => {

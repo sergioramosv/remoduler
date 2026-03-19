@@ -4,7 +4,7 @@ import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 
 export const INDEX_CACHE_TTL = config.intelligenceCacheTtl ?? 300000;
-export const MAX_TOKENS = config.intelligenceMaxTokens ?? 2000;
+export const MAX_CHARS = config.intelligenceMaxChars ?? 2000;
 
 const cache = new Map();
 
@@ -30,7 +30,7 @@ export async function indexCodebase(targetDir = 'src/') {
       totalLines,
     };
 
-    const truncated = truncateToTokens(summary, MAX_TOKENS);
+    const truncated = truncateToMaxLength(summary, MAX_CHARS);
 
     cache.set(targetDir, { data: truncated, timestamp: Date.now() });
     logger.info(`Indexed ${files.length} files (${totalLines} lines) from ${targetDir}`, 'INTELLIGENCE');
@@ -88,17 +88,17 @@ function buildTree(files, baseDir) {
   return files.map(f => relative(baseDir, f.path)).sort().join('\n');
 }
 
-function truncateToTokens(summary, maxTokens) {
+function truncateToMaxLength(summary, maxChars) {
   const json = JSON.stringify(summary);
-  if (json.length <= maxTokens) return summary;
+  if (json.length <= maxChars) return summary;
 
-  // Truncate files list to fit within token limit
+  // Truncate files list to fit within character limit
   const truncated = { ...summary, files: [] };
   let currentLength = JSON.stringify(truncated).length;
 
   for (const file of summary.files) {
     const fileJson = JSON.stringify(file);
-    if (currentLength + fileJson.length + 1 > maxTokens) break;
+    if (currentLength + fileJson.length + 1 > maxChars) break;
     truncated.files.push(file);
     currentLength += fileJson.length + 1;
   }

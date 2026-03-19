@@ -157,8 +157,8 @@ function detectQuotes(contents) {
   let doubleCount = 0;
 
   for (const content of contents) {
-    const singles = content.match(/'/g) || [];
-    const doubles = content.match(/"/g) || [];
+    const singles = content.match(/(?:^|[\s=:(,])(')/gm) || [];
+    const doubles = content.match(/(?:^|[\s=:(,])(")/gm) || [];
     singleCount += singles.length;
     doubleCount += doubles.length;
   }

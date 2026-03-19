@@ -49,7 +49,7 @@ export const config = {
 
   // Intelligence
   intelligenceCacheTtl: parseInt(process.env.INTELLIGENCE_CACHE_TTL || '300000'),
-  intelligenceMaxTokens: parseInt(process.env.INTELLIGENCE_MAX_TOKENS || '2000'),
+  intelligenceMaxChars: parseInt(process.env.INTELLIGENCE_MAX_CHARS || '2000'),
   intelligenceDecayFactor: parseFloat(process.env.INTELLIGENCE_DECAY_FACTOR || '0.95'),
   intelligenceSyncThreshold: parseFloat(process.env.INTELLIGENCE_SYNC_THRESHOLD || '0.6'),
 };

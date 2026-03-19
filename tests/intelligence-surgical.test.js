@@ -15,7 +15,7 @@ vi.mock('../src/firebase.js', () => ({
 vi.mock('../src/config.js', () => ({
   config: {
     intelligenceCacheTtl: 300000,
-    intelligenceMaxTokens: 2000,
+    intelligenceMaxChars: 2000,
     intelligenceDecayFactor: 0.95,
     intelligenceSyncThreshold: 0.6,
   },
@@ -35,7 +35,7 @@ vi.mock('../src/events/event-bus.js', () => ({
 }));
 
 // --- Imports (after mocks) ---
-const { indexCodebase, clearIndexCache, INDEX_CACHE_TTL, MAX_TOKENS } =
+const { indexCodebase, clearIndexCache, INDEX_CACHE_TTL, MAX_CHARS } =
   await import('../src/intelligence/codebase-indexer.js');
 
 const { detectStyle, STYLE_RULES } =
@@ -365,7 +365,7 @@ describe('config.js intelligence keys (surgical)', () => {
   it('config mock has all 4 intelligence keys with correct defaults', async () => {
     const { config } = await import('../src/config.js');
     expect(config.intelligenceCacheTtl).toBe(300000);
-    expect(config.intelligenceMaxTokens).toBe(2000);
+    expect(config.intelligenceMaxChars).toBe(2000);
     expect(config.intelligenceDecayFactor).toBe(0.95);
     expect(config.intelligenceSyncThreshold).toBe(0.6);
   });
