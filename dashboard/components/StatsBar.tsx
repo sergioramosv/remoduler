@@ -3,6 +3,13 @@
 import type { RemodulerState, AgentInfo } from '@/lib/types';
 
 function fmt(n: number) { return n.toLocaleString(); }
+function fmtDur(ms?: number) {
+  if (!ms) return '—';
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  if (m > 0) return `${m}m ${s % 60}s`;
+  return `${s}s`;
+}
 
 export function StatsBar({ state, agents }: { state: RemodulerState; agents: Record<string, AgentInfo> }) {
   const costEur = (state.totalCost * 0.92).toFixed(3);
@@ -39,7 +46,7 @@ export function StatsBar({ state, agents }: { state: RemodulerState; agents: Rec
                   <span style={{ fontWeight: 600 }}>{name}</span>
                 </div>
                 <div style={{ color: 'var(--text-secondary)' }}>
-                  {(info.cost * 0.92).toFixed(3)}€ | {fmt(info.tokens?.total || 0)} tok
+                  {(info.cost * 0.92).toFixed(3)}€ | {fmt(info.tokens?.total || 0)} tok | {fmtDur(info.duration)}
                 </div>
               </div>
             ))}

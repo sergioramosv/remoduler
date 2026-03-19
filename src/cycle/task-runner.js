@@ -44,30 +44,41 @@ function printSummary(stats) {
   let totalCost = 0;
   let totalTokens = { ...EMPTY_TOKENS };
 
+  let totalDuration = 0;
   const rows = [];
   for (const [name, s] of Object.entries(stats)) {
     totalCost += s.cost;
     totalTokens = addTokens(totalTokens, s.tokens);
+    totalDuration += s.duration;
     rows.push({
       name,
       eur: (s.cost * 0.92).toFixed(3),
       usd: s.cost.toFixed(3),
       tokens: s.tokens.total,
       turns: s.turns,
+      time: fmtDuration(s.duration),
     });
   }
 
   // Print table
   const nameW = 12;
-  const header = `${'Agent'.padEnd(nameW)} ${'EUR'.padStart(8)} ${'USD'.padStart(8)} ${'Tokens'.padStart(10)} ${'Turns'.padStart(6)}`;
+  const header = `${'Agent'.padEnd(nameW)} ${'EUR'.padStart(8)} ${'USD'.padStart(8)} ${'Tokens'.padStart(10)} ${'Turns'.padStart(6)} ${'Time'.padStart(8)}`;
   console.log(`  ${header}`);
   console.log(`  ${'─'.repeat(header.length)}`);
   for (const r of rows) {
-    console.log(`  ${r.name.padEnd(nameW)} ${(r.eur + '€').padStart(8)} ${('$' + r.usd).padStart(8)} ${r.tokens.toLocaleString().padStart(10)} ${String(r.turns).padStart(6)}`);
+    console.log(`  ${r.name.padEnd(nameW)} ${(r.eur + '€').padStart(8)} ${('$' + r.usd).padStart(8)} ${r.tokens.toLocaleString().padStart(10)} ${String(r.turns).padStart(6)} ${r.time.padStart(8)}`);
   }
   console.log(`  ${'─'.repeat(header.length)}`);
-  console.log(`  ${'TOTAL'.padEnd(nameW)} ${((totalCost * 0.92).toFixed(3) + '€').padStart(8)} ${('$' + totalCost.toFixed(3)).padStart(8)} ${totalTokens.total.toLocaleString().padStart(10)}`);
+  console.log(`  ${'TOTAL'.padEnd(nameW)} ${((totalCost * 0.92).toFixed(3) + '€').padStart(8)} ${('$' + totalCost.toFixed(3)).padStart(8)} ${totalTokens.total.toLocaleString().padStart(10)} ${''.padStart(6)} ${fmtDuration(totalDuration).padStart(8)}`);
   console.log(`\n  Tokens breakdown: in: ${totalTokens.input.toLocaleString()} | out: ${totalTokens.output.toLocaleString()} | cache-r: ${totalTokens.cacheRead.toLocaleString()} | cache-w: ${totalTokens.cacheWrite.toLocaleString()}\n`);
+}
+
+function fmtDuration(ms) {
+  if (!ms) return '—';
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  if (m > 0) return `${m}m ${s % 60}s`;
+  return `${s}s`;
 }
 
 /**

@@ -6,6 +6,7 @@ import { checkpointManager } from './state/checkpoint-manager.js';
 import { config } from './config.js';
 import { budgetManager } from './cost/budget-manager.js';
 import { startSync, stopSync } from './state/firebase-sync.js';
+import { startHeartbeat, stopHeartbeat } from './heartbeat/heartbeat.js';
 
 export { eventBus, remodulerState, checkpointManager };
 
@@ -63,8 +64,20 @@ export async function run(projectId, options = {}) {
       }
 
       if (result.rateLimited) {
-        logger.warn('Rate limited, stopping');
-        break;
+        logger.warn('Rate limited — starting heartbeat to auto-resume', 'HEARTBEAT');
+        remodulerState.setExecution('paused');
+
+        // Wait for recovery
+        const recovered = await waitForRecovery();
+        if (!recovered) {
+          logger.warn('Recovery timeout or stop requested, exiting');
+          break;
+        }
+
+        logger.success('Rate limit recovered! Resuming...', 'HEARTBEAT');
+        remodulerState.setExecution('running');
+        i--; // Retry the same task slot
+        continue;
       }
 
       if (result.success) {
@@ -78,6 +91,7 @@ export async function run(projectId, options = {}) {
       }
     }
   } finally {
+    stopHeartbeat();
     remodulerState.setExecution('idle');
     await stopSync();
 
@@ -97,6 +111,39 @@ export async function run(projectId, options = {}) {
   }
 
   return { completed, failed, totalCost: remodulerState.state.totalCost };
+}
+
+/**
+ * Espera a que los CLIs se recuperen del rate limit.
+ * Inicia heartbeat y espera evento de recuperación.
+ * Retorna false si se solicita stop.
+ */
+function waitForRecovery() {
+  return new Promise((resolve) => {
+    startHeartbeat();
+
+    const onRecovered = () => {
+      stopHeartbeat();
+      cleanup();
+      resolve(true);
+    };
+
+    const onStop = () => {
+      stopHeartbeat();
+      cleanup();
+      resolve(false);
+    };
+
+    function cleanup() {
+      eventBus.off('heartbeat:allRecovered', onRecovered);
+      eventBus.off('dashboard:stop', onStop);
+      eventBus.off('state:stop', onStop);
+    }
+
+    eventBus.on('heartbeat:allRecovered', onRecovered);
+    eventBus.on('dashboard:stop', onStop);
+    eventBus.on('state:stop', onStop);
+  });
 }
 
 /**

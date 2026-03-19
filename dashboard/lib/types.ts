@@ -31,6 +31,7 @@ export interface AgentInfo {
   cost: number;
   turns: number;
   tokens: Tokens | null;
+  duration?: number;
   startedAt: number;
   finishedAt?: number;
 }

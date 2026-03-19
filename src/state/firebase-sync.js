@@ -73,12 +73,13 @@ export async function startSync(pid) {
     addHistory('agent_start', `${agent} started`, { agent });
   });
 
-  eventBus.on('agent:done', ({ agent, success, cost, turns, tokens }) => {
+  eventBus.on('agent:done', ({ agent, success, cost, turns, tokens, duration }) => {
     ref(`agents/${agent}`).update({
       status: success ? 'done' : 'failed',
       cost: cost || 0,
       turns: turns || 0,
       tokens: tokens || null,
+      duration: duration || 0,
       finishedAt: Date.now(),
     });
     ref('state/currentAgent').set(null);
