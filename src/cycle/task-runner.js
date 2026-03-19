@@ -13,6 +13,9 @@ import { checkpointManager } from '../state/checkpoint-manager.js';
 import { config } from '../config.js';
 import { budgetManager } from '../cost/budget-manager.js';
 import { changeTaskStatus } from '../firebase.js';
+import { classifyComplexity } from '../triage/complexity-classifier.js';
+import { selectModel } from '../triage/model-selector.js';
+import { shouldDecompose } from '../triage/task-decomposer.js';
 
 const EMPTY_TOKENS = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
 
@@ -111,6 +114,17 @@ export async function runTask(projectId, cwd) {
     title: task.title,
     devPoints: task.devPoints,
   });
+
+  // === TRIAGE: Complexity Classification ===
+  const complexity = classifyComplexity(task);
+  logger.info(`Complexity: ${complexity.level} (score: ${complexity.score}) — ${complexity.reasons.join('; ')}`, 'TRIAGE');
+
+  const coderModel = selectModel('CODER', complexity.level);
+  logger.info(`Model selection — CODER: ${coderModel}`, 'TRIAGE');
+
+  if (shouldDecompose(task)) {
+    logger.warn(`Task devPoints (${task.devPoints}) exceeds decomposition threshold — consider splitting`, 'TRIAGE');
+  }
 
   try {
     // === PHASE 2: ARCHITECTING ===

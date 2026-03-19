@@ -41,6 +41,11 @@ export const config = {
   rateLimitFallback: process.env.RATE_LIMIT_FALLBACK !== 'false',
   fallbackCliOrder: (process.env.FALLBACK_CLI_ORDER || 'claude,codex,gemini').split(','),
   rateLimitCooldownMinutes: parseInt(process.env.RATE_LIMIT_COOLDOWN_MINUTES || '15'),
+
+  // Triage
+  triageEpsilon: parseFloat(process.env.TRIAGE_EPSILON || '0.1'),
+  triageDecomposeThreshold: parseInt(process.env.TRIAGE_DECOMPOSE_THRESHOLD || '5'),
+  triageForceModels: parseJson(process.env.TRIAGE_FORCE_MODELS, {}),
 };
 
 export function validateConfig() {
@@ -52,6 +57,10 @@ export function validateConfig() {
   if (!config.defaultProjectId) issues.push('DEFAULT_PROJECT_ID not set');
 
   return { valid: issues.length === 0, issues };
+}
+
+function parseJson(str, fallback) {
+  try { return JSON.parse(str); } catch { return fallback; }
 }
 
 function cliExists(cmd) {
