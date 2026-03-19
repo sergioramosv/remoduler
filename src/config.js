@@ -1,7 +1,11 @@
 import { execSync } from 'node:child_process';
+import dotenv from 'dotenv';
+
+// Cargar .env aquí para garantizar que process.env está listo antes del objeto config
+dotenv.config({ quiet: true });
 
 /**
- * Config loader. Lee de .env (ya cargado por dotenv en index.js).
+ * Config loader. Lee de process.env (cargado por dotenv).
  */
 export const config = {
   // Agent CLIs

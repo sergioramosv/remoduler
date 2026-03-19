@@ -3,57 +3,60 @@ import dotenv from 'dotenv';
 dotenv.config({ quiet: true });
 
 import { Command } from 'commander';
-import { spawnAgent } from './spawn-agent.js';
-import { parseResultAsJson } from './parse-result.js';
+import { run, resume, checkForPendingCheckpoints } from './orchestrator.js';
 import { runPlanner } from './agents/planner.js';
 import { runArchitect } from './agents/architect.js';
-import { runTask } from './cycle/task-runner.js';
+import { config, validateConfig } from './config.js';
 
 const program = new Command();
 
 program
   .name('remoduler')
   .description('Orquestador de agentes IA autonomo')
-  .version('0.1.0');
+  .version('1.0.0');
 
+// --- remoduler run ---
 program
   .command('run')
   .description('Ejecutar el pipeline completo: Plan → Architect → Code → Test → Review')
   .option('-p, --project <id>', 'Project ID')
-  .option('-t, --tasks <n>', 'Número de tareas a ejecutar', '1')
+  .option('-t, --tasks <n>', 'Número de tareas a ejecutar (0 = infinito)', '1')
   .option('--cwd <path>', 'Directorio del repo target', process.cwd())
   .action(async (opts) => {
-    const projectId = opts.project || process.env.DEFAULT_PROJECT_ID;
+    const projectId = opts.project || config.defaultProjectId;
     if (!projectId) {
       console.error('No project ID. Set DEFAULT_PROJECT_ID in .env or use -p <id>');
       process.exit(1);
     }
 
-    const numTasks = parseInt(opts.tasks);
-    console.log(`Remoduler: running ${numTasks} task(s) for project ${projectId}\n`);
+    await checkForPendingCheckpoints();
+    await run(projectId, {
+      tasks: parseInt(opts.tasks),
+      cwd: opts.cwd,
+    });
+  });
 
-    for (let i = 0; i < numTasks; i++) {
-      const result = await runTask(projectId, opts.cwd);
-      if (!result) {
-        console.log('No more tasks in backlog.');
-        break;
-      }
-      if (result.rateLimited) {
-        console.log('Rate limited. Stopping.');
-        break;
-      }
-      console.log(`\nTask ${i + 1} done: ${result.success ? 'SUCCESS' : 'FAILED'} | Cost: $${result.totalCost?.toFixed(4)}\n`);
+// --- remoduler resume ---
+program
+  .command('resume')
+  .description('Reanudar desde el último checkpoint (rate limit recovery)')
+  .option('--cwd <path>', 'Directorio del repo target', process.cwd())
+  .action(async (opts) => {
+    const result = await resume({ cwd: opts.cwd });
+    if (!result) {
+      console.log('Nothing to resume.');
     }
   });
 
+// --- remoduler plan ---
 program
   .command('plan')
-  .description('Seleccionar la mejor tarea del backlog')
+  .description('Seleccionar la mejor tarea del backlog (solo planificar, no ejecutar)')
   .option('-p, --project <id>', 'Project ID')
   .action(async (opts) => {
-    const projectId = opts.project || process.env.DEFAULT_PROJECT_ID;
-    const userId = process.env.DEFAULT_USER_ID;
-    const userName = process.env.DEFAULT_USER_NAME || 'Remoduler';
+    const projectId = opts.project || config.defaultProjectId;
+    const userId = config.defaultUserId;
+    const userName = config.defaultUserName || 'Remoduler';
 
     if (!projectId) {
       console.error('No project ID. Set DEFAULT_PROJECT_ID in .env or use -p <id>');
@@ -65,8 +68,6 @@ program
 
     if (!result.success) {
       console.error('Planner failed:', result.error);
-      if (result.raw) console.error('Raw:', result.raw);
-      if (result.stderr) console.error('Stderr:', result.stderr);
       process.exit(1);
     }
 
@@ -75,7 +76,7 @@ program
       return;
     }
 
-    console.log(`\n✓ Selected task:`);
+    console.log(`\nSelected task:`);
     console.log(`  ID:       ${result.taskId}`);
     console.log(`  Title:    ${result.title}`);
     console.log(`  Branch:   ${result.branchName}`);
@@ -86,6 +87,7 @@ program
     console.log(`\n  Cost: $${result.cost?.toFixed(4)} | Turns: ${result.turns} | ${(result.duration / 1000).toFixed(1)}s`);
   });
 
+// --- remoduler architect ---
 program
   .command('architect')
   .description('Analizar codebase y generar plan de implementación')
@@ -99,18 +101,41 @@ program
       devPoints: 3,
     };
 
-    console.log(`Architect analyzing for: ${taskTitle}...`);
+    console.log(`Architect analyzing: ${taskTitle}...`);
     const result = await runArchitect(task, '', { cwd: opts.cwd });
 
     if (!result.success) {
       console.error('Architect failed:', result.error);
-      if (result.raw) console.error('Raw:', result.raw);
       process.exit(1);
     }
 
-    console.log('\n✓ Plan generated:');
+    console.log('\nPlan:');
     console.log(JSON.stringify(result.plan, null, 2));
     console.log(`\nCost: $${result.cost?.toFixed(4)} | Turns: ${result.turns} | ${(result.duration / 1000).toFixed(1)}s`);
+  });
+
+// --- remoduler doctor ---
+program
+  .command('doctor')
+  .description('Verificar configuración y dependencias')
+  .action(() => {
+    const { valid, issues } = validateConfig();
+    if (valid) {
+      console.log('All checks passed.');
+    } else {
+      console.log('Issues found:');
+      issues.forEach(i => console.log(`  - ${i}`));
+      process.exit(1);
+    }
+  });
+
+// --- remoduler setup ---
+program
+  .command('setup')
+  .description('Configurar remoduler (generar .env)')
+  .action(async () => {
+    const { runSetup } = await import('./setup.js');
+    await runSetup();
   });
 
 program.parse();
