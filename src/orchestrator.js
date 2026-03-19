@@ -5,6 +5,7 @@ import { remodulerState } from './state/remoduler-state.js';
 import { checkpointManager } from './state/checkpoint-manager.js';
 import { config } from './config.js';
 import { budgetManager } from './cost/budget-manager.js';
+import { startSync, stopSync } from './state/firebase-sync.js';
 
 export { eventBus, remodulerState, checkpointManager };
 
@@ -19,7 +20,12 @@ export async function run(projectId, options = {}) {
 
   remodulerState.setExecution('running');
   await budgetManager.initialize(projectId);
+  await startSync(projectId);
   eventBus.emit('orchestrator:start', { projectId, maxTasks });
+
+  // Listen for dashboard commands
+  eventBus.on('dashboard:pause', () => remodulerState.requestPause());
+  eventBus.on('dashboard:stop', () => remodulerState.requestStop());
 
   const startTime = Date.now();
   let completed = 0;
@@ -73,6 +79,7 @@ export async function run(projectId, options = {}) {
     }
   } finally {
     remodulerState.setExecution('idle');
+    await stopSync();
 
     const duration = Date.now() - startTime;
     const totalCost = remodulerState.state.totalCost;
