@@ -21,12 +21,20 @@ program
   .description('Ejecutar el pipeline completo: Plan → Architect → Code → Test → Review')
   .option('-p, --project <id>', 'Project ID')
   .option('-t, --tasks <n>', 'Número de tareas a ejecutar (0 = infinito)', '1')
+  .option('-f, --focus <phase>', 'Focus en una fase (ej: 9 para solo tareas [9.x])')
   .option('--cwd <path>', 'Directorio del repo target', process.cwd())
   .action(async (opts) => {
     const projectId = opts.project || config.defaultProjectId;
     if (!projectId) {
       console.error('No project ID. Set DEFAULT_PROJECT_ID in .env or use -p <id>');
       process.exit(1);
+    }
+
+    // Set focus if provided
+    if (opts.focus) {
+      const { setFocus } = await import('./state/focus.js');
+      await setFocus(opts.focus);
+      console.log(`Focus set to phase ${opts.focus} — only [${opts.focus}.x] tasks will be selected\n`);
     }
 
     await checkForPendingCheckpoints();
@@ -165,6 +173,34 @@ program
     });
 
     child.on('close', (code) => process.exit(code || 0));
+  });
+
+// --- remoduler focus ---
+program
+  .command('focus [phase]')
+  .description('Ver o cambiar el focus de fase (ej: remoduler focus 9)')
+  .option('--clear', 'Limpiar focus')
+  .action(async (phase, opts) => {
+    const { getFocus, setFocus, clearFocus } = await import('./state/focus.js');
+
+    if (opts.clear) {
+      await clearFocus();
+      console.log('Focus cleared.');
+      return;
+    }
+
+    if (phase) {
+      await setFocus(phase);
+      console.log(`Focus set to phase ${phase} — remoduler run will only select [${phase}.x] tasks in order.`);
+      return;
+    }
+
+    const current = await getFocus();
+    if (current?.phase) {
+      console.log(`Current focus: phase ${current.phase} (set ${new Date(current.setAt).toLocaleString('es-ES')})`);
+    } else {
+      console.log('No focus set. Use: remoduler focus 9');
+    }
   });
 
 // --- remoduler install ---
