@@ -129,10 +129,19 @@ program
     }
   });
 
-// --- remoduler setup ---
+// --- remoduler install ---
+program
+  .command('install')
+  .description('Instalar Remoduler: wizard de configuración + registrar MCPs en todos los clientes')
+  .action(async () => {
+    const { runSetup } = await import('./setup.js');
+    await runSetup();
+  });
+
+// --- remoduler setup (alias) ---
 program
   .command('setup')
-  .description('Configurar remoduler (generar .env)')
+  .description('Alias de install')
   .action(async () => {
     const { runSetup } = await import('./setup.js');
     await runSetup();
