@@ -63,7 +63,8 @@ export async function run(projectId, options = {}) {
 
       if (result.success) {
         completed++;
-        logger.success(`Task completed (${completed} done, $${result.totalCost?.toFixed(4)})`);
+        const eur = (result.totalCost * 0.92).toFixed(4);
+        logger.success(`Task completed (${completed} done, ${eur}€ / $${result.totalCost?.toFixed(4)})`);
       } else {
         failed++;
         logger.error(`Task failed: ${result.error || 'unknown'}`);
@@ -76,10 +77,16 @@ export async function run(projectId, options = {}) {
     const duration = Date.now() - startTime;
     const totalCost = remodulerState.state.totalCost;
 
-    logger.taskHeader('REMODULER — DONE');
-    logger.info(`Completed: ${completed} | Failed: ${failed} | Cost: $${totalCost.toFixed(4)} | Time: ${(duration / 1000).toFixed(0)}s`);
+    const budgetStatus = budgetManager.getStatus();
+    const costEur = (totalCost * 0.92).toFixed(4);
 
-    eventBus.emit('orchestrator:done', { completed, failed, totalCost, duration });
+    logger.taskHeader('REMODULER — DONE');
+    logger.info(`Completed: ${completed} | Failed: ${failed}`);
+    logger.info(`Cost: ${costEur}€ / $${totalCost.toFixed(4)}`);
+    logger.info(`Tokens: ${budgetStatus.tokens.total.toLocaleString()} (in: ${budgetStatus.tokens.input.toLocaleString()} | out: ${budgetStatus.tokens.output.toLocaleString()} | cache-r: ${budgetStatus.tokens.cacheRead.toLocaleString()} | cache-w: ${budgetStatus.tokens.cacheWrite.toLocaleString()})`);
+    logger.info(`Time: ${(duration / 1000).toFixed(0)}s`);
+
+    eventBus.emit('orchestrator:done', { completed, failed, totalCost, tokens: budgetStatus.tokens, duration });
   }
 
   return { completed, failed, totalCost: remodulerState.state.totalCost };
