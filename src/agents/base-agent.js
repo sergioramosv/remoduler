@@ -126,8 +126,9 @@ export class BaseAgent {
 
       const tokens = parsed.tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
 
+      const costEur = (parsed.cost * 0.92).toFixed(4); // USD → EUR approx
       logger.success(
-        `Done ($${parsed.cost?.toFixed(4)} | ${parsed.turns} turns | ${tokens.total} tokens | ${(duration / 1000).toFixed(1)}s)`,
+        `Done (${costEur}€ / $${parsed.cost?.toFixed(4)} | ${tokens.total.toLocaleString()} tokens | ${parsed.turns} turns | ${(duration / 1000).toFixed(1)}s)`,
         this.#name,
       );
       eventBus.emit('agent:done', {

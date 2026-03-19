@@ -168,7 +168,7 @@ export async function runTask(projectId, cwd) {
 
     // === RESULT ===
     if (reviewResult.approved) {
-      logger.success(`Task completed! ${reviewResult.cycles} review cycle(s). Cost: $${totalCost.toFixed(4)}`);
+      logger.success(`Task completed! ${reviewResult.cycles} review cycle(s). Cost: ${(totalCost * 0.92).toFixed(4)}€ / $${totalCost.toFixed(4)}`);
       remodulerState.taskCompleted(totalCost);
 
       // Update task status in planning-task
