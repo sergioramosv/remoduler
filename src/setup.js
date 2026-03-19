@@ -9,7 +9,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = resolve(__dirname, '..');
 const SKILLS_DIR = join(ROOT_DIR, 'skills');
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 8;
 
 function ask(rl, question, defaultVal) {
   return new Promise(res => {
@@ -306,6 +306,26 @@ RATE_LIMIT_COOLDOWN_MINUTES=15
   printStep(7, 'Configurar permisos');
   configurePermissions();
 
+  // === STEP 8: Global install ===
+  printStep(8, 'Instalar comando global');
+  let globalOk = false;
+  try {
+    execSync('npm link', { cwd: ROOT_DIR, stdio: 'pipe' });
+    // Verify it works
+    const ver = execSync('remoduler --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+    console.log(`  ✓ Comando "remoduler" instalado globalmente (v${ver})`);
+    globalOk = true;
+  } catch (err) {
+    console.log(`  ✗ npm link falló: ${err.message}`);
+    console.log('  Puedes instalarlo manualmente: cd ' + ROOT_DIR + ' && npm link');
+  }
+
+  // Install dashboard deps
+  const dashboardDir = join(ROOT_DIR, 'dashboard');
+  if (existsSync(join(dashboardDir, 'package.json'))) {
+    installDeps(dashboardDir, 'dashboard');
+  }
+
   // === SUMMARY ===
   console.log('');
   console.log('  ╔══════════════════════════════════════════╗');
@@ -319,8 +339,12 @@ RATE_LIMIT_COOLDOWN_MINUTES=15
   console.log(`  MCPs registrados ✓  remoduler-mcp, planning-task-mcp, github-mcp, memory-mcp`);
   console.log(`  Clientes         ✓  ${configured.join(', ') || 'ninguno'}`);
   console.log(`  Budget           ✓  $${dailyBudget}/día`);
+  console.log(`  Comando global   ${globalOk ? '✓' : '✗'}  ${globalOk ? 'remoduler' : 'no instalado'}`);
   console.log('');
-  console.log('  Reinicia tu terminal/IDE y prueba:');
-  console.log('    "remoduler plan" o usa remoduler_plan desde Claude Code');
+  console.log('  Comandos disponibles:');
+  console.log('    remoduler run          Ejecutar pipeline completo');
+  console.log('    remoduler plan         Elegir tarea');
+  console.log('    remoduler dashboard    Abrir dashboard');
+  console.log('    remoduler doctor       Verificar config');
   console.log('');
 }
