@@ -34,23 +34,21 @@ export function PipelineView({ currentPhase }: { currentPhase: string | null }) 
                 position: 'relative',
                 overflow: 'hidden',
               }}>
-                {/* Fill sweep animation */}
+                {/* Fill & empty animation */}
                 {isActive && (
-                  <div
-                    className="fill-sweep"
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      bottom: 0,
-                      width: '100%',
-                      background: `linear-gradient(90deg, transparent, ${color}40, ${color}20, transparent)`,
-                      transformOrigin: 'left center',
-                    }}
-                  />
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    width: '100%',
+                    background: `${color}30`,
+                    transformOrigin: 'left center',
+                    animation: 'fillEmpty 3s ease-in-out infinite',
+                  }} />
                 )}
 
-                {/* Done fill */}
+                {/* Done: solid fill */}
                 {isDone && (
                   <div style={{
                     position: 'absolute',
@@ -83,19 +81,11 @@ export function PipelineView({ currentPhase }: { currentPhase: string | null }) 
         })}
       </div>
       <style>{`
-        .fill-sweep {
-          animation: fillSweep 2s ease-in-out infinite;
-        }
-        @keyframes fillSweep {
-          0% {
-            transform: translateX(-100%);
-          }
-          50% {
-            transform: translateX(0%);
-          }
-          100% {
-            transform: translateX(100%);
-          }
+        @keyframes fillEmpty {
+          0% { transform: scaleX(0); transform-origin: left; }
+          45% { transform: scaleX(1); transform-origin: left; }
+          55% { transform: scaleX(1); transform-origin: right; }
+          100% { transform: scaleX(0); transform-origin: right; }
         }
       `}</style>
     </div>
