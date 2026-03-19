@@ -40,6 +40,7 @@ export async function runQA(task, branchName, filesChanged, options = {}) {
     summary: data.summary,
     cost: result.cost,
     turns: result.turns,
+    tokens: result.tokens,
     duration: result.duration,
   };
 }

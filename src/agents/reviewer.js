@@ -38,6 +38,7 @@ export async function runReviewer(task, prUrl, branchName, options = {}) {
     summary: data.summary,
     cost: result.cost,
     turns: result.turns,
+    tokens: result.tokens,
     duration: result.duration,
   };
 }

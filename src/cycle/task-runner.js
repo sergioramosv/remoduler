@@ -50,7 +50,7 @@ export async function runTask(projectId, cwd) {
 
   const task = planResult;
   totalCost += planResult.cost || 0;
-  await budgetManager.addCost(planResult.cost || 0);
+  await budgetManager.addCost(planResult.cost || 0, planResult.tokens);
 
   remodulerState.setCurrentTask(task);
   logger.taskHeader(`TASK: ${task.title}`);
@@ -68,7 +68,7 @@ export async function runTask(projectId, cwd) {
 
     const archResult = await runArchitect(task, task.repoUrl, { cwd });
     totalCost += archResult.cost || 0;
-    await budgetManager.addCost(archResult.cost || 0);
+    await budgetManager.addCost(archResult.cost || 0, archResult.tokens);
 
     const plan = archResult.success ? archResult.plan : null;
 
@@ -88,7 +88,7 @@ export async function runTask(projectId, cwd) {
     );
 
     totalCost += codeResult.cost || 0;
-    await budgetManager.addCost(codeResult.cost || 0);
+    await budgetManager.addCost(codeResult.cost || 0, codeResult.tokens);
 
     if (!codeResult.success) {
       if (codeResult.rateLimited) {
@@ -133,7 +133,7 @@ export async function runTask(projectId, cwd) {
 
     for (const [name, result] of Object.entries(testResults)) {
       totalCost += result.cost || 0;
-      await budgetManager.addCost(result.cost || 0);
+      await budgetManager.addCost(result.cost || 0, result.tokens);
       if (result.success) {
         logger.success(`${name} done: ${result.summary || 'OK'}`, name);
       } else {
@@ -163,7 +163,7 @@ export async function runTask(projectId, cwd) {
     });
 
     totalCost += reviewResult.cost || 0;
-    await budgetManager.addCost(reviewResult.cost || 0);
+    await budgetManager.addCost(reviewResult.cost || 0, reviewResult.tokens);
 
     // === RESULT ===
     if (reviewResult.approved) {

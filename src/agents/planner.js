@@ -55,6 +55,7 @@ export async function runPlanner({ projectId, userId, userName }, options = {}) 
     reason: data.reason,
     cost: result.cost,
     turns: result.turns,
+    tokens: result.tokens,
     duration: result.duration,
   };
 }

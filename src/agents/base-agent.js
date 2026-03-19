@@ -124,8 +124,10 @@ export class BaseAgent {
         };
       }
 
+      const tokens = parsed.tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+
       logger.success(
-        `Done ($${parsed.cost?.toFixed(4)} | ${parsed.turns} turns | ${(duration / 1000).toFixed(1)}s)`,
+        `Done ($${parsed.cost?.toFixed(4)} | ${parsed.turns} turns | ${tokens.total} tokens | ${(duration / 1000).toFixed(1)}s)`,
         this.#name,
       );
       eventBus.emit('agent:done', {
@@ -133,6 +135,7 @@ export class BaseAgent {
         success: true,
         cost: parsed.cost,
         turns: parsed.turns,
+        tokens,
       });
 
       return {
@@ -141,6 +144,7 @@ export class BaseAgent {
         data: parsed.data ?? null,
         cost: parsed.cost,
         turns: parsed.turns,
+        tokens,
         duration,
         isFallback: raw.isFallback,
         effectiveCli: raw.effectiveCli,

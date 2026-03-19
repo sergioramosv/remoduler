@@ -11,6 +11,7 @@ class BudgetManager {
   #projectId = null;
   #daily = { date: '', spent: 0 };
   #weekly = { weekStart: '', spent: 0 };
+  #tokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
   #initialized = false;
   #warningEmitted = { daily: false, weekly: false };
   #exceededEmitted = { daily: false, weekly: false };
@@ -46,6 +47,13 @@ class BudgetManager {
         this.#weekly = { weekStart: currentWeekStart, spent: 0 };
       }
 
+      // Load token totals (reset daily)
+      if (data?.tokens && data.tokens.date === today) {
+        this.#tokens = { ...data.tokens };
+      } else {
+        this.#tokens = { date: today, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+      }
+
       this.#warningEmitted = { daily: false, weekly: false };
       this.#exceededEmitted = { daily: false, weekly: false };
       this.#initialized = true;
@@ -53,7 +61,7 @@ class BudgetManager {
       await this.#persist();
 
       logger.info(
-        `Budget initialized — Daily: $${this.#daily.spent.toFixed(2)}/$${config.dailyBudgetUsd} | Weekly: $${this.#weekly.spent.toFixed(2)}/$${config.weeklyBudgetUsd}`,
+        `Budget initialized — Daily: $${this.#daily.spent.toFixed(2)}/$${config.dailyBudgetUsd} | Weekly: $${this.#weekly.spent.toFixed(2)}/$${config.weeklyBudgetUsd} | Tokens today: ${this.#tokens.total.toLocaleString()}`,
         'BUDGET',
       );
     } catch (error) {
@@ -65,13 +73,23 @@ class BudgetManager {
   }
 
   /**
-   * Registra un gasto. Persiste a Firebase y emite eventos si corresponde.
+   * Registra un gasto con tokens opcionales.
+   * @param {number} amount - Coste en USD
+   * @param {{ input, output, cacheRead, cacheWrite, total }} [tokens] - Tokens consumidos
    */
-  async addCost(amount) {
+  async addCost(amount, tokens) {
     if (!amount || amount <= 0) return;
 
     this.#daily.spent += amount;
     this.#weekly.spent += amount;
+
+    if (tokens) {
+      this.#tokens.input += tokens.input || 0;
+      this.#tokens.output += tokens.output || 0;
+      this.#tokens.cacheRead += tokens.cacheRead || 0;
+      this.#tokens.cacheWrite += tokens.cacheWrite || 0;
+      this.#tokens.total += tokens.total || 0;
+    }
 
     await this.#persist();
     this.#checkThresholds();
@@ -107,6 +125,13 @@ class BudgetManager {
         percentage: config.weeklyBudgetUsd > 0
           ? this.#weekly.spent / config.weeklyBudgetUsd
           : 0,
+      },
+      tokens: {
+        input: this.#tokens.input,
+        output: this.#tokens.output,
+        cacheRead: this.#tokens.cacheRead,
+        cacheWrite: this.#tokens.cacheWrite,
+        total: this.#tokens.total,
       },
     };
   }
@@ -150,6 +175,7 @@ class BudgetManager {
         .set({
           daily: { ...this.#daily },
           weekly: { ...this.#weekly },
+          tokens: { ...this.#tokens },
         });
     } catch (error) {
       logger.error(`Budget persist failed: ${error.message}`, 'BUDGET');

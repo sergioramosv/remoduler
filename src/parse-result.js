@@ -15,6 +15,7 @@ export function parseResult(stdout) {
     try {
       const parsed = JSON.parse(line.trim());
       if (parsed.type === 'result') {
+        const tokens = extractTokens(parsed.modelUsage);
         return {
           success: !parsed.is_error,
           result: parsed.result,
@@ -22,6 +23,7 @@ export function parseResult(stdout) {
           turns: parsed.num_turns ?? 0,
           duration: parsed.duration_ms ?? 0,
           model: Object.keys(parsed.modelUsage || {})[0] ?? null,
+          tokens,
         };
       }
     } catch {}
@@ -31,6 +33,7 @@ export function parseResult(stdout) {
   try {
     const parsed = JSON.parse(trimmed);
     if (parsed.result !== undefined) {
+      const tokens = extractTokens(parsed.modelUsage);
       return {
         success: !parsed.is_error,
         result: parsed.result,
@@ -38,11 +41,31 @@ export function parseResult(stdout) {
         turns: parsed.num_turns ?? 0,
         duration: parsed.duration_ms ?? 0,
         model: Object.keys(parsed.modelUsage || {})[0] ?? null,
+        tokens,
       };
     }
   } catch {}
 
   return { success: false, error: 'No result found in output', raw: trimmed.slice(0, 500) };
+}
+
+/**
+ * Extrae totales de tokens de modelUsage de Claude.
+ * modelUsage: { "claude-opus-4-6[1m]": { inputTokens, outputTokens, cacheReadInputTokens, cacheCreationInputTokens } }
+ */
+function extractTokens(modelUsage) {
+  if (!modelUsage) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+
+  let input = 0, output = 0, cacheRead = 0, cacheWrite = 0;
+
+  for (const model of Object.values(modelUsage)) {
+    input += model.inputTokens || 0;
+    output += model.outputTokens || 0;
+    cacheRead += model.cacheReadInputTokens || 0;
+    cacheWrite += model.cacheCreationInputTokens || 0;
+  }
+
+  return { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite };
 }
 
 /**

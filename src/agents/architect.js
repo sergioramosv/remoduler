@@ -38,6 +38,7 @@ export async function runArchitect(task, repoUrl, options = {}) {
     plan: data,
     cost: result.cost,
     turns: result.turns,
+    tokens: result.tokens,
     duration: result.duration,
   };
 }
