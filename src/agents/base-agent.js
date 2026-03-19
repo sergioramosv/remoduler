@@ -187,6 +187,14 @@ export class BaseAgent {
           command: 'node',
           args: [resolve(skillsDir, name, 'src', 'index.js')],
         };
+      } else if (name === 'memory-mcp') {
+        servers[name] = {
+          command: 'node',
+          args: [resolve(skillsDir, name, 'src', 'index.js')],
+          env: {
+            REMODULER_ROOT: resolve(process.cwd()),
+          },
+        };
       }
     }
 

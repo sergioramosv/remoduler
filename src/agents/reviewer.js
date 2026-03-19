@@ -13,7 +13,7 @@ export async function runReviewer(task, prUrl, branchName, options = {}) {
     name: 'REVIEWER',
     cli,
     systemPrompt: prompt,
-    mcpServers: ['github-mcp'],
+    mcpServers: ['github-mcp', 'memory-mcp'],
     maxTurns: 15,
     timeout,
     reviewerMode: true,
