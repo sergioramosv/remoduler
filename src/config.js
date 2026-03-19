@@ -46,6 +46,10 @@ export const config = {
   triageEpsilon: parseFloat(process.env.TRIAGE_EPSILON || '0.1'),
   triageDecomposeThreshold: parseInt(process.env.TRIAGE_DECOMPOSE_THRESHOLD || '5'),
   triageForceModels: parseJson(process.env.TRIAGE_FORCE_MODELS, {}),
+
+  // Knowledge Graph
+  knowledgeLocalDir: process.env.KNOWLEDGE_LOCAL_DIR || '.remoduler/knowledge',
+  knowledgeMaxEntries: parseInt(process.env.KNOWLEDGE_MAX_ENTRIES || '200'),
 };
 
 export function validateConfig() {
