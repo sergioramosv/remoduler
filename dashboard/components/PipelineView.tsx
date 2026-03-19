@@ -43,12 +43,11 @@ export function PipelineView({ currentPhase }: { currentPhase: string | null }) 
                     bottom: 0,
                     width: '100%',
                     background: `${color}30`,
-                    transformOrigin: 'left center',
                     animation: 'fillEmpty 3s ease-in-out infinite',
                   }} />
                 )}
 
-                {/* Done: solid fill */}
+                {/* Done fill */}
                 {isDone && (
                   <div style={{
                     position: 'absolute',
