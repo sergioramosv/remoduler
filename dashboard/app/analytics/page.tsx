@@ -1,7 +1,6 @@
 'use client';
 
-import { useAgents, useRemodulerState, useHistory } from '@/lib/hooks';
-import type { HistoryEntry } from '@/lib/types';
+import { useLifetime, useLifetimeAgents } from '@/lib/hooks';
 
 function fmt(n: number) { return n.toLocaleString(); }
 function eur(usd: number) { return (usd * 0.92).toFixed(3); }
@@ -9,6 +8,8 @@ function fmtDur(ms: number) {
   if (!ms) return '—';
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  if (h > 0) return `${h}h ${m % 60}m`;
   if (m > 0) return `${m}m ${s % 60}s`;
   return `${s}s`;
 }
@@ -23,25 +24,35 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
   );
 }
 
+function TokenBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
+  const pct = total > 0 ? (value / total * 100) : 0;
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{label}</span>
+        <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{pct.toFixed(1)}%</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 4, background: 'var(--bg-primary)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 4 }} />
+      </div>
+      <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{fmt(value)}</div>
+    </div>
+  );
+}
+
 export default function AnalyticsPage() {
-  const state = useRemodulerState();
-  const agents = useAgents();
-  const history = useHistory();
+  const lt = useLifetime();
+  const agents = useLifetimeAgents();
 
-  const tokens = state.totalTokens;
-  const totalCost = state.totalCost;
-  const tasksTotal = state.tasksCompleted + state.tasksFailed;
-  const avgCostPerTask = tasksTotal > 0 ? totalCost / tasksTotal : 0;
+  const tokens = lt.totalTokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+  const tasksTotal = (lt.tasksCompleted || 0) + (lt.tasksFailed || 0);
+  const avgCostPerTask = tasksTotal > 0 ? lt.totalCost / tasksTotal : 0;
   const avgTokensPerTask = tasksTotal > 0 ? tokens.total / tasksTotal : 0;
+  const successRate = tasksTotal > 0 ? ((lt.tasksCompleted || 0) / tasksTotal * 100).toFixed(0) : '—';
+  const avgCycles = (lt.tasksCompleted || 0) > 0 ? ((lt.totalReviewCycles || 0) / lt.tasksCompleted).toFixed(1) : '—';
 
-  // Task completions from history
-  const completedTasks = history.filter(h => h.action === 'task_complete');
-  const failedTasks = history.filter(h => h.action === 'task_failed');
-  const successRate = tasksTotal > 0 ? (state.tasksCompleted / tasksTotal * 100).toFixed(0) : '—';
-
-  // Agent breakdown
   const agentEntries = Object.entries(agents);
-  const totalAgentTime = agentEntries.reduce((sum, [, a]) => sum + (a.duration || 0), 0);
+  const totalAgentCost = agentEntries.reduce((sum, [, a]) => sum + (a.totalCost || 0), 0);
 
   return (
     <div className="dashboard">
@@ -49,21 +60,19 @@ export default function AnalyticsPage() {
         <div>
           <div className="dashboard-title">Analytics</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-            Usage statistics and cost analysis
+            Lifetime stats — since {lt.firstRunAt ? new Date(lt.firstRunAt).toLocaleDateString('es-ES') : '—'} — {lt.totalSessions || 0} sessions
           </div>
         </div>
       </div>
 
-      {/* Overview cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-        <StatCard label="Total Cost" value={`${eur(totalCost)}€`} sub={`$${totalCost.toFixed(3)}`} />
+        <StatCard label="Total Cost" value={`${eur(lt.totalCost || 0)}€`} sub={`$${(lt.totalCost || 0).toFixed(3)}`} />
         <StatCard label="Total Tokens" value={fmt(tokens.total)} sub={`in:${fmt(tokens.input)} out:${fmt(tokens.output)}`} />
-        <StatCard label="Tasks Done" value={String(state.tasksCompleted)} sub={`${state.tasksFailed} failed`} />
+        <StatCard label="Tasks Done" value={String(lt.tasksCompleted || 0)} sub={`${lt.tasksFailed || 0} failed`} />
         <StatCard label="Avg / Task" value={`${eur(avgCostPerTask)}€`} sub={`${fmt(Math.round(avgTokensPerTask))} tokens`} />
-        <StatCard label="Success Rate" value={`${successRate}%`} color={Number(successRate) >= 80 ? 'var(--success)' : 'var(--warning)'} />
+        <StatCard label="Success Rate" value={`${successRate}%`} sub={`${avgCycles} avg review cycles`} color={Number(successRate) >= 80 ? 'var(--success)' : 'var(--warning)'} />
       </div>
 
-      {/* Token breakdown */}
       <div className="card">
         <div className="card-header">Token Breakdown</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
@@ -74,81 +83,39 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Per Agent */}
       <div className="card">
-        <div className="card-header">Cost & Time per Agent</div>
+        <div className="card-header">Lifetime per Agent</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{
-            display: 'grid', gridTemplateColumns: '120px 1fr 90px 100px 80px 70px',
+            display: 'grid', gridTemplateColumns: '110px 1fr 80px 90px 70px 60px 50px',
             padding: '6px 10px', fontSize: 11, color: 'var(--text-muted)', fontWeight: 600,
           }}>
             <span>AGENT</span><span></span><span style={{ textAlign: 'right' }}>COST</span>
             <span style={{ textAlign: 'right' }}>TOKENS</span><span style={{ textAlign: 'right' }}>TIME</span>
-            <span style={{ textAlign: 'right' }}>TURNS</span>
+            <span style={{ textAlign: 'right' }}>TURNS</span><span style={{ textAlign: 'right' }}>RUNS</span>
           </div>
           {agentEntries.map(([name, info]) => {
-            const pct = totalCost > 0 ? (info.cost / totalCost * 100) : 0;
+            const pct = totalAgentCost > 0 ? ((info.totalCost || 0) / totalAgentCost * 100) : 0;
             return (
               <div key={name} style={{
-                display: 'grid', gridTemplateColumns: '120px 1fr 90px 100px 80px 70px',
+                display: 'grid', gridTemplateColumns: '110px 1fr 80px 90px 70px 60px 50px',
                 padding: '8px 10px', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)',
                 fontSize: 12, fontFamily: 'var(--font-mono)', alignItems: 'center',
               }}>
                 <span style={{ fontWeight: 600 }}>{name}</span>
                 <div style={{ height: 6, borderRadius: 3, background: 'var(--bg-primary)', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 3, transition: 'width 0.3s' }} />
+                  <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 3 }} />
                 </div>
-                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{eur(info.cost)}€</span>
-                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(info.tokens?.total || 0)}</span>
-                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{fmtDur(info.duration || 0)}</span>
-                <span style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{info.turns}</span>
+                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{eur(info.totalCost || 0)}€</span>
+                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(info.totalTokens?.total || 0)}</span>
+                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{fmtDur(info.totalDuration || 0)}</span>
+                <span style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{info.totalTurns || 0}</span>
+                <span style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{info.runs || 0}</span>
               </div>
             );
           })}
         </div>
       </div>
-
-      {/* Budget usage */}
-      <div className="card">
-        <div className="card-header">Budget Usage</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <BudgetMeter label="Daily" spent={totalCost} limit={10} />
-          <BudgetMeter label="Weekly" spent={totalCost} limit={50} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TokenBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
-  const pct = total > 0 ? (value / total * 100) : 0;
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{label}</span>
-        <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{pct.toFixed(1)}%</span>
-      </div>
-      <div style={{ height: 8, borderRadius: 4, background: 'var(--bg-primary)', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 4, transition: 'width 0.5s' }} />
-      </div>
-      <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{fmt(value)}</div>
-    </div>
-  );
-}
-
-function BudgetMeter({ label, spent, limit }: { label: string; spent: number; limit: number }) {
-  const pct = Math.min((spent / limit) * 100, 100);
-  const color = pct >= 100 ? 'var(--error)' : pct >= 80 ? 'var(--warning)' : 'var(--success)';
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 600 }}>{label}</span>
-        <span className="mono" style={{ fontSize: 13, color }}>{eur(spent)}€ / {eur(limit)}€</span>
-      </div>
-      <div style={{ height: 10, borderRadius: 5, background: 'var(--bg-primary)', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 5, transition: 'width 0.5s' }} />
-      </div>
-      <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{pct.toFixed(0)}% used</div>
     </div>
   );
 }

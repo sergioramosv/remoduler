@@ -13,10 +13,16 @@ export function Controls({ state }: { state: RemodulerState }) {
   const [focus, setFocus] = useState('');
   const [starting, setStarting] = useState(false);
 
-  // Reset starting when state changes to running
+  // Reset starting when state changes to running, or timeout after 15s
   useEffect(() => {
     if (isRunning) setStarting(false);
   }, [isRunning]);
+
+  useEffect(() => {
+    if (!starting) return;
+    const timer = setTimeout(() => setStarting(false), 15000);
+    return () => clearTimeout(timer);
+  }, [starting]);
 
   const startRun = async () => {
     setStarting(true);
