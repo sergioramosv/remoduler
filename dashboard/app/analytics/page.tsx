@@ -1,7 +1,6 @@
 'use client';
 
-import { useAgents, useRemodulerState, useHistory } from '@/lib/hooks';
-import type { HistoryEntry } from '@/lib/types';
+import { useLifetime, useLifetimeAgents } from '@/lib/hooks';
 
 function fmt(n: number) { return n.toLocaleString(); }
 function eur(usd: number) { return (usd * 0.92).toFixed(3); }
@@ -24,24 +23,18 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
 }
 
 export default function AnalyticsPage() {
-  const state = useRemodulerState();
-  const agents = useAgents();
-  const history = useHistory();
+  const lt = useLifetime();
+  const agents = useLifetimeAgents();
 
-  const tokens = state.totalTokens;
-  const totalCost = state.totalCost;
-  const tasksTotal = state.tasksCompleted + state.tasksFailed;
+  const tokens = lt.totalTokens;
+  const totalCost = lt.totalCost;
+  const tasksTotal = lt.tasksCompleted + lt.tasksFailed;
   const avgCostPerTask = tasksTotal > 0 ? totalCost / tasksTotal : 0;
   const avgTokensPerTask = tasksTotal > 0 ? tokens.total / tasksTotal : 0;
+  const successRate = tasksTotal > 0 ? (lt.tasksCompleted / tasksTotal * 100).toFixed(0) : '—';
 
-  // Task completions from history
-  const completedTasks = history.filter(h => h.action === 'task_complete');
-  const failedTasks = history.filter(h => h.action === 'task_failed');
-  const successRate = tasksTotal > 0 ? (state.tasksCompleted / tasksTotal * 100).toFixed(0) : '—';
-
-  // Agent breakdown
   const agentEntries = Object.entries(agents);
-  const totalAgentTime = agentEntries.reduce((sum, [, a]) => sum + (a.duration || 0), 0);
+  const totalAgentCost = agentEntries.reduce((sum, [, a]) => sum + (a.totalCost || 0), 0);
 
   return (
     <div className="dashboard">
@@ -58,7 +51,7 @@ export default function AnalyticsPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         <StatCard label="Total Cost" value={`${eur(totalCost)}€`} sub={`$${totalCost.toFixed(3)}`} />
         <StatCard label="Total Tokens" value={fmt(tokens.total)} sub={`in:${fmt(tokens.input)} out:${fmt(tokens.output)}`} />
-        <StatCard label="Tasks Done" value={String(state.tasksCompleted)} sub={`${state.tasksFailed} failed`} />
+        <StatCard label="Tasks Done" value={String(lt.tasksCompleted)} sub={`${lt.tasksFailed} failed`} />
         <StatCard label="Avg / Task" value={`${eur(avgCostPerTask)}€`} sub={`${fmt(Math.round(avgTokensPerTask))} tokens`} />
         <StatCard label="Success Rate" value={`${successRate}%`} color={Number(successRate) >= 80 ? 'var(--success)' : 'var(--warning)'} />
       </div>
@@ -87,7 +80,7 @@ export default function AnalyticsPage() {
             <span style={{ textAlign: 'right' }}>TURNS</span>
           </div>
           {agentEntries.map(([name, info]) => {
-            const pct = totalCost > 0 ? (info.cost / totalCost * 100) : 0;
+            const pct = totalAgentCost > 0 ? ((info.totalCost || 0) / totalAgentCost * 100) : 0;
             return (
               <div key={name} style={{
                 display: 'grid', gridTemplateColumns: '120px 1fr 90px 100px 80px 70px',
@@ -98,10 +91,10 @@ export default function AnalyticsPage() {
                 <div style={{ height: 6, borderRadius: 3, background: 'var(--bg-primary)', overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 3, transition: 'width 0.3s' }} />
                 </div>
-                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{eur(info.cost)}€</span>
-                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(info.tokens?.total || 0)}</span>
-                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{fmtDur(info.duration || 0)}</span>
-                <span style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{info.turns}</span>
+                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{eur(info.totalCost || 0)}€</span>
+                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(info.totalTokens?.total || 0)}</span>
+                <span style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{fmtDur(info.totalDuration || 0)}</span>
+                <span style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{info.totalTurns || 0}</span>
               </div>
             );
           })}
