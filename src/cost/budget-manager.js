@@ -27,6 +27,14 @@ class BudgetManager {
     this.#projectId = projectId;
 
     try {
+      // Check for dashboard overrides (unlimited, custom limits)
+      const overridesSnap = await getDb().ref(`remoduler/${projectId}/overrides`).once('value');
+      const overrides = overridesSnap.val();
+      if (overrides) {
+        if (overrides.dailyBudgetUsd) config.dailyBudgetUsd = overrides.dailyBudgetUsd;
+        if (overrides.weeklyBudgetUsd) config.weeklyBudgetUsd = overrides.weeklyBudgetUsd;
+      }
+
       const snapshot = await getDb()
         .ref(`budgets/${projectId}`)
         .once('value');

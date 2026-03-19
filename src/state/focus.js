@@ -15,8 +15,17 @@ const projectId = () => config.defaultProjectId;
 
 export async function getFocus() {
   try {
+    // Check CLI-set focus first
     const snap = await getDb().ref(`remoduler/${projectId()}/focus`).once('value');
-    return snap.val(); // { phase: "9", setAt: timestamp } or null
+    const cliFocus = snap.val();
+    if (cliFocus?.phase) return cliFocus;
+
+    // Check dashboard settings focus
+    const settingsSnap = await getDb().ref(`remoduler/${projectId()}/settings/focusPhase`).once('value');
+    const dashFocus = settingsSnap.val();
+    if (dashFocus) return { phase: String(dashFocus), setAt: Date.now() };
+
+    return null;
   } catch { return null; }
 }
 
