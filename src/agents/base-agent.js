@@ -137,6 +137,7 @@ export class BaseAgent {
         cost: parsed.cost,
         turns: parsed.turns,
         tokens,
+        duration,
       });
 
       return {
