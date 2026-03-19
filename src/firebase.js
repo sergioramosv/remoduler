@@ -41,6 +41,32 @@ export async function getTasks(projectId, status = 'to-do') {
 }
 
 /**
+ * Cambia el estado de una tarea en Firebase.
+ */
+export async function changeTaskStatus(taskId, newStatus) {
+  const userId = process.env.DEFAULT_USER_ID || '';
+  const userName = process.env.DEFAULT_USER_NAME || 'Remoduler';
+
+  await getDb().ref(`tasks/${taskId}`).update({
+    status: newStatus,
+    updatedAt: Date.now(),
+  });
+
+  // Add history entry
+  const historyRef = getDb().ref(`tasks/${taskId}/history`).push();
+  await historyRef.set({
+    id: historyRef.key,
+    action: 'update',
+    field: 'status',
+    oldValue: null, // we don't track old value here for simplicity
+    newValue: newStatus,
+    timestamp: Date.now(),
+    userId,
+    userName,
+  });
+}
+
+/**
  * Cierra la conexión con Firebase.
  */
 export async function closeDb() {
