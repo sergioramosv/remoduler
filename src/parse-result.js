@@ -1,0 +1,73 @@
+/**
+ * Parsea la salida de un CLI de IA y extrae el resultado útil.
+ * Claude con --output-format json devuelve JSON lines, el último con type:"result".
+ */
+export function parseResult(stdout) {
+  if (!stdout || typeof stdout !== 'string') {
+    return { success: false, error: 'Empty output' };
+  }
+
+  const trimmed = stdout.trim();
+
+  // Claude JSON output: buscar linea con type:"result"
+  const lines = trimmed.split('\n');
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line.trim());
+      if (parsed.type === 'result') {
+        return {
+          success: !parsed.is_error,
+          result: parsed.result,
+          cost: parsed.total_cost_usd ?? 0,
+          turns: parsed.num_turns ?? 0,
+          duration: parsed.duration_ms ?? 0,
+          model: Object.keys(parsed.modelUsage || {})[0] ?? null,
+        };
+      }
+    } catch {}
+  }
+
+  // Fallback: intentar parsear todo como JSON directo
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed.result !== undefined) {
+      return {
+        success: !parsed.is_error,
+        result: parsed.result,
+        cost: parsed.total_cost_usd ?? 0,
+        turns: parsed.num_turns ?? 0,
+        duration: parsed.duration_ms ?? 0,
+        model: Object.keys(parsed.modelUsage || {})[0] ?? null,
+      };
+    }
+  } catch {}
+
+  return { success: false, error: 'No result found in output', raw: trimmed.slice(0, 500) };
+}
+
+/**
+ * Elimina bloques ```json ... ``` del texto para extraer JSON limpio.
+ */
+function stripCodeBlock(text) {
+  if (!text) return text;
+  const match = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+  return match ? match[1].trim() : text.trim();
+}
+
+/**
+ * Intenta parsear el result como JSON (para cuando el agente devuelve JSON estructurado).
+ */
+export function parseResultAsJson(stdout) {
+  const parsed = parseResult(stdout);
+  if (!parsed.success) return parsed;
+
+  const cleaned = stripCodeBlock(parsed.result);
+  try {
+    parsed.data = JSON.parse(cleaned);
+  } catch {
+    // El result es texto plano, no JSON — eso está bien para algunos agentes
+    parsed.data = null;
+  }
+
+  return parsed;
+}
