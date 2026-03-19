@@ -35,6 +35,7 @@ export async function startSync(pid) {
   });
 
   await ref('agents').set({});
+  await ref('rateLimit').remove();
 
   // Listen for dashboard commands (pause/stop)
   const cmdRef = ref('commands');
@@ -131,6 +132,15 @@ export async function startSync(pid) {
   eventBus.on('rate-limit:detected', ({ cli, agentName }) => {
     ref('rateLimit').set({ limited: true, cli, agent: agentName, detectedAt: Date.now() });
     addHistory('rate_limit', `Rate limit detected on ${cli} (${agentName})`, { cli, agentName });
+  });
+
+  eventBus.on('heartbeat:recovered', ({ cli }) => {
+    ref('rateLimit').remove();
+    addHistory('rate_recovered', `Rate limit recovered: ${cli}`, { cli });
+  });
+
+  eventBus.on('heartbeat:allRecovered', () => {
+    ref('rateLimit').remove();
   });
 
   eventBus.on('budget:warning', (data) => {
