@@ -19,16 +19,8 @@ export default function DashboardPage() {
       <ToastContainer history={history} />
 
       <div className="dashboard">
-        {/* Header */}
-        <div className="dashboard-header">
-          <div>
-            <div className="dashboard-title">Remoduler</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-              Autonomous AI Agent Orchestrator
-            </div>
-          </div>
-          <Controls state={state} />
-        </div>
+        {/* Controls — Start / Pause / Stop / Resume */}
+        <Controls state={state} />
 
         {/* Rate limit bar */}
         {rateLimit?.limited && (
