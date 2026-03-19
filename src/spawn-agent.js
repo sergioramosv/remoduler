@@ -84,10 +84,12 @@ export function spawnAgent(cli, prompt, options = {}) {
       clearTimeout(timer);
       cleanup();
 
-      // 5. Check stdout for rate limits too
-      if (!rateLimited && checkAndEmitRateLimit(stdout, effectiveCli, agentName)) {
-        rateLimited = true;
-        fallbackManager.markRateLimited(effectiveCli);
+      // 5. Check for rate limit: only in stderr or if process exited with error and empty stdout
+      if (!rateLimited && code !== 0 && !stdout.trim()) {
+        if (checkAndEmitRateLimit(stderr, effectiveCli, agentName)) {
+          rateLimited = true;
+          fallbackManager.markRateLimited(effectiveCli);
+        }
       }
 
       resolve({
