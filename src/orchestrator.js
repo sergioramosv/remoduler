@@ -19,9 +19,9 @@ export async function run(projectId, options = {}) {
   logger.taskHeader(`REMODULER — ${dryRun ? 'DRY RUN' : 'RUNNING'}`);
   logger.info(`Project: ${projectId} | Tasks: ${maxTasks || '∞'} | CWD: ${cwd}`);
 
-  remodulerState.setExecution('running');
   await budgetManager.initialize(projectId);
-  await startSync(projectId);
+  await startSync(projectId);  // Must be before setExecution so Firebase listeners catch 'running'
+  remodulerState.setExecution('running');
   eventBus.emit('orchestrator:start', { projectId, maxTasks });
 
   // Listen for dashboard commands

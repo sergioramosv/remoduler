@@ -50,6 +50,12 @@ export const config = {
   // Knowledge Graph
   knowledgeLocalDir: process.env.KNOWLEDGE_LOCAL_DIR || '.remoduler/knowledge',
   knowledgeMaxEntries: parseInt(process.env.KNOWLEDGE_MAX_ENTRIES || '200'),
+
+  // Autonomy
+  autonomyLevel: process.env.AUTONOMY_LEVEL || 'semi-autonomous',
+  autonomyApprovalTimeoutMs: parseInt(process.env.AUTONOMY_APPROVAL_TIMEOUT_MS || '300000'),
+  autonomyDiffThreshold: parseInt(process.env.AUTONOMY_DIFF_THRESHOLD || '500'),
+  autonomyMaxCyclesThreshold: parseInt(process.env.AUTONOMY_MAX_CYCLES_THRESHOLD || '3'),
 };
 
 export function validateConfig() {

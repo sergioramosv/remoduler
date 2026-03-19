@@ -18,6 +18,7 @@ import { classifyComplexity } from '../triage/complexity-classifier.js';
 import { selectModel } from '../triage/model-selector.js';
 import { shouldDecompose } from '../triage/task-decomposer.js';
 import { knowledgeGraph } from '../knowledge/knowledge-graph.js';
+import { autonomyEngine } from '../autonomy/autonomy-engine.js';
 
 const EMPTY_TOKENS = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
 
@@ -170,6 +171,12 @@ export async function runTask(projectId, cwd) {
       logger.warn('Architect failed, Coder will work without plan');
     }
 
+    // === AUTONOMY: Pre-code gate ===
+    const preCodeGate = await autonomyEngine.checkGate('pre-code', { task, plan });
+    if (!preCodeGate.allowed) {
+      throw new Error(`Autonomy gate denied pre-code: ${preCodeGate.reasons.join('; ')}`);
+    }
+
     // === PHASE 3: CODING ===
     logger.taskHeader('PHASE 3: CODING');
     remodulerState.setCurrentAgent('CODER');
@@ -191,6 +198,12 @@ export async function runTask(projectId, cwd) {
     const { prUrl, prNumber, branchName, filesChanged, summary: coderSummary } = codeResult;
     logger.success(`PR created: ${prUrl}`, 'CODER');
     eventBus.emit('task:prCreated', { taskId: task.taskId, prNumber, prUrl });
+
+    // === AUTONOMY: Pre-merge gate ===
+    const preMergeGate = await autonomyEngine.checkGate('pre-merge', { filesChanged, prUrl, task });
+    if (!preMergeGate.allowed) {
+      throw new Error(`Autonomy gate denied pre-merge: ${preMergeGate.reasons.join('; ')}`);
+    }
 
     // === PHASE 4: TESTING (parallel) ===
     logger.taskHeader('PHASE 4: TESTING');
