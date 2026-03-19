@@ -53,18 +53,19 @@ describe('spawnAgent', () => {
     expect(fn).toHaveBeenCalled();
   }, 10000);
 
-  it('detects rate limit in stdout too', async () => {
+  it('does NOT false-positive on stdout content mentioning rate limit', async () => {
+    // Agent talking about rate limits in its response should NOT trigger detection
     const result = await spawnAgent(
       'node',
       '',
       {
-        args: ['-e', 'console.log("quota exceeded for today")'],
+        args: ['-e', 'console.log("the code handles quota exceeded correctly")'],
         timeout: 5000,
         agentName: 'TEST',
       }
     );
 
-    expect(result.rateLimited).toBe(true);
+    expect(result.rateLimited).toBe(false);
   }, 10000);
 
   it('watchdog kills long-running process on no-access', async () => {
