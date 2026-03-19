@@ -37,6 +37,7 @@ export async function runCoder(task, plan, branchName, repoUrl, options = {}) {
     summary: data.summary,
     cost: result.cost,
     turns: result.turns,
+    tokens: result.tokens,
     duration: result.duration,
   };
 }
@@ -77,6 +78,7 @@ export async function runCoderFix(task, branchName, reviewIssues, options = {}) 
     summary: data.summary,
     cost: result.cost,
     turns: result.turns,
+    tokens: result.tokens,
     duration: result.duration,
   };
 }

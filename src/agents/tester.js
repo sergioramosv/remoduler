@@ -41,6 +41,7 @@ export async function runTester(task, branchName, plan, coderSummary, risks, opt
     summary: data.summary,
     cost: result.cost,
     turns: result.turns,
+    tokens: result.tokens,
     duration: result.duration,
   };
 }
