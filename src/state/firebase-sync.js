@@ -58,6 +58,13 @@ export async function startSync(pid) {
     const cmd = snap.val();
     if (cmd?.action === 'pause') eventBus.emit('dashboard:pause', {});
     else if (cmd?.action === 'stop') eventBus.emit('dashboard:stop', {});
+    else if (cmd?.action === 'approval_response') {
+      eventBus.emit('autonomy:approval-response', {
+        requestId: cmd.requestId,
+        approved: cmd.approved === true,
+        respondedBy: cmd.respondedBy || 'dashboard',
+      });
+    }
     await snap.ref.remove();
   });
 
@@ -137,6 +144,10 @@ export async function startSync(pid) {
 
   eventBus.on('budget:warning', (d) => addHistory('budget_warning', `Budget ${d.type} at ${(d.spent / d.limit * 100).toFixed(0)}%`, d));
   eventBus.on('budget:exceeded', (d) => addHistory('budget_exceeded', `Budget exceeded: ${d.type}`, d));
+
+  eventBus.on('autonomy:approval-request', (data) => {
+    addHistory('approval_request', `Approval requested for '${data.action}'`, data);
+  });
 
   eventBus.on('orchestrator:done', ({ completed, failed, totalCost, tokens, duration }) => {
     ref('state/execution').set('idle');
