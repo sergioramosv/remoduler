@@ -12,6 +12,7 @@ import { remodulerState } from '../state/remoduler-state.js';
 import { checkpointManager } from '../state/checkpoint-manager.js';
 import { config } from '../config.js';
 import { budgetManager } from '../cost/budget-manager.js';
+import { changeTaskStatus } from '../firebase.js';
 
 /**
  * Pipeline completo de ejecución de una tarea.
@@ -169,10 +170,28 @@ export async function runTask(projectId, cwd) {
     if (reviewResult.approved) {
       logger.success(`Task completed! ${reviewResult.cycles} review cycle(s). Cost: $${totalCost.toFixed(4)}`);
       remodulerState.taskCompleted(totalCost);
+
+      // Update task status in planning-task
+      try {
+        await changeTaskStatus(task.taskId, 'to-validate');
+        logger.info(`Task ${task.taskId} → to-validate`, 'PLANNER');
+      } catch (err) {
+        logger.warn(`Failed to update task status: ${err.message}`, 'PLANNER');
+      }
+
       eventBus.emit('task:complete', { taskId: task.taskId, totalCost, cycles: reviewResult.cycles });
     } else {
       logger.error(`Task not approved after ${reviewResult.cycles} cycles`);
       remodulerState.taskFailed(reviewResult.error);
+
+      // Put task back to to-do
+      try {
+        await changeTaskStatus(task.taskId, 'to-do');
+        logger.info(`Task ${task.taskId} → to-do (not approved)`, 'PLANNER');
+      } catch (err) {
+        logger.warn(`Failed to update task status: ${err.message}`, 'PLANNER');
+      }
+
       eventBus.emit('task:failed', { taskId: task.taskId, error: reviewResult.error });
     }
 
