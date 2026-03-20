@@ -50,6 +50,14 @@ export const config = {
   // Knowledge Graph
   knowledgeLocalDir: process.env.KNOWLEDGE_LOCAL_DIR || '.remoduler/knowledge',
   knowledgeMaxEntries: parseInt(process.env.KNOWLEDGE_MAX_ENTRIES || '200'),
+
+  // Resilience
+  resilienceThresholds: parseJson(process.env.RESILIENCE_THRESHOLDS, { firebase: 5, github: 3, cli: 4 }),
+  resilienceCooldownMs: parseInt(process.env.RESILIENCE_COOLDOWN_MS || '60000'),
+  resilienceErrorBudgetWindowMs: parseInt(process.env.RESILIENCE_ERROR_BUDGET_WINDOW_MS || '1800000'),
+  resilienceErrorBudgetMaxRate: parseFloat(process.env.RESILIENCE_ERROR_BUDGET_MAX_RATE || '0.3'),
+  resilienceDlqMaxRetries: parseInt(process.env.RESILIENCE_DLQ_MAX_RETRIES || '3'),
+  resilienceDlqBaseDelayMs: parseInt(process.env.RESILIENCE_DLQ_BASE_DELAY_MS || '1000'),
 };
 
 export function validateConfig() {

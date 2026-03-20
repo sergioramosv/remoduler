@@ -22,26 +22,29 @@
 
 import { z } from 'zod';
 import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = process.env.REMODULER_ROOT || resolve(__dirname, '..', '..', '..');
 
+// Helper: convert absolute path to file:// URL (required for ESM on Windows)
+const toURL = (p) => pathToFileURL(resolve(ROOT_DIR, p)).href;
+
 // Dynamic imports
-const { runPlanner } = await import(`${ROOT_DIR}/src/agents/planner.js`);
-const { runArchitect } = await import(`${ROOT_DIR}/src/agents/architect.js`);
-const { runCoder, runCoderFix } = await import(`${ROOT_DIR}/src/agents/coder.js`);
-const { runReviewer } = await import(`${ROOT_DIR}/src/agents/reviewer.js`);
-const { run, resume } = await import(`${ROOT_DIR}/src/orchestrator.js`);
-const { config, validateConfig } = await import(`${ROOT_DIR}/src/config.js`);
-const { budgetManager } = await import(`${ROOT_DIR}/src/cost/budget-manager.js`);
-const { changeTaskStatus } = await import(`${ROOT_DIR}/src/firebase.js`);
-const { logger } = await import(`${ROOT_DIR}/src/utils/logger.js`);
+const { runPlanner } = await import(toURL('src/agents/planner.js'));
+const { runArchitect } = await import(toURL('src/agents/architect.js'));
+const { runCoder, runCoderFix } = await import(toURL('src/agents/coder.js'));
+const { runReviewer } = await import(toURL('src/agents/reviewer.js'));
+const { run, resume } = await import(toURL('src/orchestrator.js'));
+const { config, validateConfig } = await import(toURL('src/config.js'));
+const { budgetManager } = await import(toURL('src/cost/budget-manager.js'));
+const { changeTaskStatus } = await import(toURL('src/firebase.js'));
+const { logger } = await import(toURL('src/utils/logger.js'));
 
 // gh CLI helper
 let runGh = null;
 try {
-  const ghCli = await import(`${ROOT_DIR}/skills/github-mcp/src/gh-cli.js`);
+  const ghCli = await import(toURL('skills/github-mcp/src/gh-cli.js'));
   runGh = ghCli.runGh;
 } catch {}
 

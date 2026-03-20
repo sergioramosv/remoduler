@@ -4,3 +4,4 @@ node_modules/
 serviceAccountKey.json
 .remoduler/
 _debug_*
+.env.generated
