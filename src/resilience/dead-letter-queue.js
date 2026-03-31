@@ -1,92 +1,78 @@
+/**
+ * Dead Letter Queue — queues failed operations with exponential backoff retry.
+ * Base delay: 1s, max retries: 3.
+ */
 import { config } from '../config.js';
-import { logger } from '../utils/logger.js';
 import { eventBus } from '../events/event-bus.js';
 
-let idCounter = 0;
-
-/**
- * DeadLetterQueue — stores failed operations for retry with exponential backoff.
- * Retries: baseDelay * 2^attempt (1s, 2s, 4s). Max 3 attempts.
- */
-class DeadLetterQueue {
+export class DeadLetterQueue {
   #queue = [];
   #maxRetries;
   #baseDelayMs;
-  #isProcessing = false;
+  #processing = false;
 
-  constructor(maxRetries, baseDelayMs) {
-    this.#maxRetries = maxRetries ?? config.resilienceDlqMaxRetries;
-    this.#baseDelayMs = baseDelayMs ?? config.resilienceDlqBaseDelayMs;
+  constructor(opts = {}) {
+    this.#maxRetries = opts.maxRetries ?? config.resilienceDlqMaxRetries ?? 3;
+    this.#baseDelayMs = opts.baseDelayMs ?? config.resilienceDlqBaseDelayMs ?? 1000;
   }
 
-  enqueue({ service, operation, payload, error }) {
-    const entry = {
-      id: `dlq-${++idCounter}`,
-      service,
-      operation,
-      payload,
-      error: error?.message || String(error),
-      attempts: 0,
-      nextRetryAt: Date.now() + this.#baseDelayMs,
-      status: 'pending',
-    };
+  get length() { return this.#queue.length; }
 
-    this.#queue.push(entry);
-    logger.warn(`DLQ enqueued [${service}/${operation}]: ${entry.error}`, 'RESILIENCE');
-    eventBus.emit('resilience:dlq-enqueued', { id: entry.id, service, operation });
-    return entry.id;
+  /**
+   * Add a failed operation to the queue.
+   * @param {{ id: string, fn: () => Promise<*>, context?: object }} entry
+   */
+  enqueue(entry) {
+    this.#queue.push({ ...entry, retries: 0, lastError: null });
+    eventBus.emit('resilience:dlqEnqueued', { id: entry.id, queueLength: this.#queue.length });
   }
 
-  async processRetries(retryFn) {
-    if (this.#isProcessing) return;
-    this.#isProcessing = true;
+  /**
+   * Process all queued operations with exponential backoff.
+   * @returns {Promise<{ succeeded: string[], failed: string[] }>}
+   */
+  async processAll() {
+    if (this.#processing) return { succeeded: [], failed: [] };
+    this.#processing = true;
 
-    try {
-      const now = Date.now();
-      const ready = this.#queue.filter(e => e.status === 'pending' && e.nextRetryAt <= now);
+    const succeeded = [];
+    const failed = [];
+    const remaining = [];
 
-      for (const entry of ready) {
-        entry.attempts++;
-        logger.info(`DLQ retry #${entry.attempts} [${entry.service}/${entry.operation}]`, 'RESILIENCE');
-        eventBus.emit('resilience:dlq-retry', { id: entry.id, attempt: entry.attempts });
+    for (const entry of this.#queue) {
+      const delay = this.#baseDelayMs * Math.pow(2, entry.retries);
+      await this.#sleep(delay);
 
-        try {
-          await retryFn(entry);
-          entry.status = 'resolved';
-          logger.info(`DLQ resolved [${entry.service}/${entry.operation}]`, 'RESILIENCE');
-        } catch (err) {
-          entry.error = err?.message || String(err);
-
-          if (entry.attempts >= this.#maxRetries) {
-            entry.status = 'permanently-failed';
-            logger.error(`DLQ permanently failed [${entry.service}/${entry.operation}] after ${entry.attempts} attempts`, 'RESILIENCE');
-            eventBus.emit('resilience:dlq-permanent-fail', { id: entry.id, service: entry.service, operation: entry.operation, attempts: entry.attempts });
-          } else {
-            entry.nextRetryAt = now + this.#baseDelayMs * Math.pow(2, entry.attempts);
-          }
+      try {
+        await entry.fn();
+        succeeded.push(entry.id);
+        eventBus.emit('resilience:dlqRetrySuccess', { id: entry.id, retries: entry.retries + 1 });
+      } catch (err) {
+        entry.retries++;
+        entry.lastError = err.message;
+        if (entry.retries >= this.#maxRetries) {
+          failed.push(entry.id);
+          eventBus.emit('resilience:dlqMaxRetries', { id: entry.id, error: err.message });
+        } else {
+          remaining.push(entry);
         }
       }
-    } finally {
-      this.#isProcessing = false;
     }
+
+    this.#queue = remaining;
+    this.#processing = false;
+    return { succeeded, failed };
   }
 
-  getQueue() {
-    return this.#queue.filter(e => e.status === 'pending');
+  getEntries() {
+    return this.#queue.map(e => ({ id: e.id, retries: e.retries, lastError: e.lastError }));
   }
 
-  getPermanentlyFailed() {
-    return this.#queue.filter(e => e.status === 'permanently-failed');
-  }
-
-  size() {
-    return this.#queue.filter(e => e.status === 'pending').length;
-  }
-
-  reset() {
+  clear() {
     this.#queue = [];
   }
-}
 
-export { DeadLetterQueue };
-export const deadLetterQueue = new DeadLetterQueue();
+  #sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}

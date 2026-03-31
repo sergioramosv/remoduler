@@ -1,100 +1,82 @@
+/**
+ * Circuit Breaker — protects external service calls with CLOSED/OPEN/HALF_OPEN states.
+ * Thresholds per service: firebase=5, github=3, cli=4. Cooldown 60s.
+ */
 import { config } from '../config.js';
-import { logger } from '../utils/logger.js';
 import { eventBus } from '../events/event-bus.js';
 
-export const CIRCUIT_STATES = {
-  CLOSED: 'CLOSED',
-  OPEN: 'OPEN',
-  HALF_OPEN: 'HALF_OPEN',
-};
+const STATES = { CLOSED: 'CLOSED', OPEN: 'OPEN', HALF_OPEN: 'HALF_OPEN' };
 
-/**
- * CircuitBreaker — protects a service from cascading failures.
- * States: CLOSED → OPEN (after threshold failures) → HALF_OPEN (after cooldown) → CLOSED (on success).
- * One instance per service, created by ResilienceManager.
- */
-class CircuitBreaker {
+export class CircuitBreaker {
   #service;
-  #state = CIRCUIT_STATES.CLOSED;
-  #failures = 0;
   #threshold;
   #cooldownMs;
-  #lastFailureTime = 0;
+  #state = STATES.CLOSED;
+  #failures = 0;
+  #lastFailureAt = 0;
 
-  constructor(service, threshold, cooldownMs) {
+  /**
+   * @param {string} service - Service name (firebase, github, cli)
+   * @param {{ threshold?: number, cooldownMs?: number }} opts
+   */
+  constructor(service, opts = {}) {
     this.#service = service;
-    this.#threshold = threshold ?? config.resilienceThresholds[service] ?? 5;
-    this.#cooldownMs = cooldownMs ?? config.resilienceCooldownMs;
+    const thresholds = config.resilienceThresholds || { firebase: 5, github: 3, cli: 4 };
+    this.#threshold = opts.threshold ?? thresholds[service] ?? 5;
+    this.#cooldownMs = opts.cooldownMs ?? config.resilienceCooldownMs ?? 60000;
   }
 
-  async execute(fn) {
-    if (this.#state === CIRCUIT_STATES.OPEN) {
-      if (Date.now() - this.#lastFailureTime >= this.#cooldownMs) {
-        this.#transitionTo(CIRCUIT_STATES.HALF_OPEN);
+  get state() { return this.#state; }
+  get service() { return this.#service; }
+  get failures() { return this.#failures; }
+
+  /**
+   * Execute an async operation through the circuit breaker.
+   * @param {() => Promise<*>} fn
+   * @returns {Promise<*>}
+   */
+  async exec(fn) {
+    if (this.#state === STATES.OPEN) {
+      if (Date.now() - this.#lastFailureAt >= this.#cooldownMs) {
+        this.#state = STATES.HALF_OPEN;
+        eventBus.emit('resilience:halfOpen', { service: this.#service });
       } else {
-        throw new Error(`Circuit breaker OPEN for service '${this.#service}'`);
+        throw new Error(`Circuit OPEN for ${this.#service} — cooldown active`);
       }
     }
 
     try {
       const result = await fn();
-      this.#recordSuccess();
+      this.#onSuccess();
       return result;
     } catch (err) {
-      this.#recordFailure();
+      this.#onFailure();
       throw err;
     }
   }
 
-  #recordSuccess() {
-    if (this.#state === CIRCUIT_STATES.HALF_OPEN) {
-      this.#failures = 0;
-      this.#transitionTo(CIRCUIT_STATES.CLOSED);
+  #onSuccess() {
+    if (this.#state === STATES.HALF_OPEN) {
+      eventBus.emit('resilience:closed', { service: this.#service });
     }
     this.#failures = 0;
+    this.#state = STATES.CLOSED;
   }
 
-  #recordFailure() {
+  #onFailure() {
     this.#failures++;
-    this.#lastFailureTime = Date.now();
-
-    if (this.#state === CIRCUIT_STATES.HALF_OPEN) {
-      this.#transitionTo(CIRCUIT_STATES.OPEN);
-      return;
-    }
-
+    this.#lastFailureAt = Date.now();
     if (this.#failures >= this.#threshold) {
-      this.#transitionTo(CIRCUIT_STATES.OPEN);
+      this.#state = STATES.OPEN;
+      eventBus.emit('resilience:open', { service: this.#service, failures: this.#failures });
     }
-  }
-
-  #transitionTo(newState) {
-    const previous = this.#state;
-    this.#state = newState;
-
-    const eventMap = {
-      [CIRCUIT_STATES.OPEN]: 'resilience:circuit-open',
-      [CIRCUIT_STATES.HALF_OPEN]: 'resilience:circuit-half-open',
-      [CIRCUIT_STATES.CLOSED]: 'resilience:circuit-closed',
-    };
-
-    logger.info(`Circuit breaker [${this.#service}]: ${previous} → ${newState}`, 'RESILIENCE');
-    eventBus.emit(eventMap[newState], { service: this.#service, previous, current: newState });
-  }
-
-  getState() {
-    return this.#state;
-  }
-
-  getService() {
-    return this.#service;
   }
 
   reset() {
+    this.#state = STATES.CLOSED;
     this.#failures = 0;
-    this.#lastFailureTime = 0;
-    this.#state = CIRCUIT_STATES.CLOSED;
+    this.#lastFailureAt = 0;
   }
 }
 
-export { CircuitBreaker };
+export { STATES };

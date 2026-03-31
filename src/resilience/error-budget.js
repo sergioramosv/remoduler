@@ -1,60 +1,56 @@
+/**
+ * Error Budget — tracks failure rate in a rolling window.
+ * Window: 30min, max rate: 30%. Auto-pauses when exceeded.
+ */
 import { config } from '../config.js';
-import { logger } from '../utils/logger.js';
 import { eventBus } from '../events/event-bus.js';
 
-/**
- * ErrorBudget — tracks error rate over a sliding window.
- * When failure rate exceeds maxRate, emits auto-pause event.
- */
-class ErrorBudget {
-  #entries = [];
+export class ErrorBudget {
   #windowMs;
   #maxRate;
-  #exhaustedEmitted = false;
+  #entries = [];
+  #paused = false;
 
-  constructor(windowMs, maxRate) {
-    this.#windowMs = windowMs ?? config.resilienceErrorBudgetWindowMs;
-    this.#maxRate = maxRate ?? config.resilienceErrorBudgetMaxRate;
+  constructor(opts = {}) {
+    this.#windowMs = opts.windowMs ?? config.resilienceErrorBudgetWindowMs ?? 1800000;
+    this.#maxRate = opts.maxRate ?? config.resilienceErrorBudgetMaxRate ?? 0.3;
   }
+
+  get paused() { return this.#paused; }
 
   record(success) {
-    this.#prune();
     this.#entries.push({ timestamp: Date.now(), success });
-
-    if (this.isExhausted() && !this.#exhaustedEmitted) {
-      this.#exhaustedEmitted = true;
-      logger.warn(`Error budget exhausted — failure rate ${(this.getRate() * 100).toFixed(1)}% exceeds ${(this.#maxRate * 100).toFixed(1)}%`, 'RESILIENCE');
-      eventBus.emit('resilience:budget-exhausted', { rate: this.getRate(), maxRate: this.#maxRate });
-      eventBus.emit('resilience:auto-pause', { reason: 'error-budget-exhausted', rate: this.getRate() });
-    }
-
-    // Reset flag when rate recovers
-    if (!this.isExhausted()) {
-      this.#exhaustedEmitted = false;
-    }
-  }
-
-  getRate() {
     this.#prune();
-    if (this.#entries.length === 0) return 0;
-    const failures = this.#entries.filter(e => !e.success).length;
-    return failures / this.#entries.length;
-  }
-
-  isExhausted() {
-    return this.getRate() > this.#maxRate;
-  }
-
-  reset() {
-    this.#entries = [];
-    this.#exhaustedEmitted = false;
+    this.#evaluate();
   }
 
   #prune() {
     const cutoff = Date.now() - this.#windowMs;
     this.#entries = this.#entries.filter(e => e.timestamp >= cutoff);
   }
-}
 
-export { ErrorBudget };
-export const errorBudget = new ErrorBudget();
+  #evaluate() {
+    if (this.#entries.length < 3) return;
+    const failures = this.#entries.filter(e => !e.success).length;
+    const rate = failures / this.#entries.length;
+    if (rate >= this.#maxRate && !this.#paused) {
+      this.#paused = true;
+      eventBus.emit('resilience:budgetExceeded', { rate, failures, total: this.#entries.length });
+    } else if (rate < this.#maxRate && this.#paused) {
+      this.#paused = false;
+      eventBus.emit('resilience:budgetRecovered', { rate });
+    }
+  }
+
+  getStats() {
+    this.#prune();
+    const total = this.#entries.length;
+    const failures = this.#entries.filter(e => !e.success).length;
+    return { total, failures, rate: total > 0 ? failures / total : 0, paused: this.#paused };
+  }
+
+  reset() {
+    this.#entries = [];
+    this.#paused = false;
+  }
+}
