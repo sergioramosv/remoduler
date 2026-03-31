@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.0] - 2026-03-31
+
+### Breaking Changes
+- Primera release estable — versión 1.0.0
+
+### Features
+- Sistema completo de módulos 10.x: CI/CD, canary merge, SonarQube, versioning, tech debt, multi-project, integrations, plugins, observability
+
 ## [0.6.0] - 2026-03-31
 
 ### Features
