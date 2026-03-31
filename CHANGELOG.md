@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.6.0] - 2026-03-31
+
+### Features
+- HeartbeatMonitor: ping CLIs rate-limited cada 5 min y emite CLI_RECOVERED
+- CiMonitor: polling de GitHub Actions con auto-revert si CI falla (AUTO_REVERT=true)
+- CanaryMerge: merge por etapas source→staging→main con validacion CI
+- ConflictDetector: deteccion de conflictos pre-merge via git merge-tree
+- SonarQube Analyzer: quality gate automatico, bloquea merge si status=ERROR
+- PrePrTests: auto-deteccion de test command (npm/vitest/jest/cargo) y ejecucion pre-PR
+- CoverageAnalyzer: delta de cobertura vs baseline, bloquea si cae mas de MIN_COVERAGE_DELTA
+- VersionBumper: bump patch/minor/major en package.json
+- ChangelogGenerator: genera entradas CHANGELOG.md por tipo (features/fixes/breaking)
+- ReleaseManager: crea GitHub Releases via gh CLI con tagging automatico
+- ReleaseGate: bloquea release si hay bugs criticos/blocker abiertos
+- TechDebtTracker: crea tareas de deuda tecnica desde minor review issues
+- CodebaseAnalyzer: detecta unused imports y dead code exports
+- DependencyChecker: npm audit + npm outdated periodico cada 24h
+- AutoImprove: genera hasta 5 propuestas cuando el backlog esta vacio
+- MultiProjectRunner: 3 estrategias (round-robin, priority, backlog-size)
+- ProjectLoader: carga configuracion de proyectos desde PROJECTS env
+- GitHubIssueSync: sincroniza issues con label configurable cada 5 min
+- PrCommentBugs: detecta @komodo bug: en comentarios de PR cada 3 min
+- WebhookOutgoing: forwarding de eventos con backoff exponencial (max 3 retries)
+- PluginSystem: carga plugins desde PLUGINS_DIR con hooks before-review/after-code
+- AnomalyDetector: detecta token spikes, review regression y model degradation
+- TaskTimeline: registra fases, duraciones y costos por tarea en Firebase
+- ExplainDecision: explica seleccion de tarea, rechazo de PR y seleccion de modelo
+- MetricsRecorder: recordTaskMetrics, recordModelPerformance, recordRoutingOutcome
+
 All notable changes to Remoduler are documented in this file.
 
 ## [0.5.0] - 2026-03-31
